@@ -91,6 +91,7 @@ public class Engine : GameWindow
         GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
         ECS.Render();
         PostRender?.Invoke();
+        UIRenderer.Flush();
         SwapBuffers();
     }
     protected override void OnUnload()
