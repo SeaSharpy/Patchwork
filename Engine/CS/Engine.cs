@@ -29,7 +29,7 @@ public class Engine : GameWindow
     static double TimeDouble = 0;
     bool OnTop = false;
     public event Action? PostRender;
-    public Engine(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, bool onTop) : base(gameWindowSettings, nativeWindowSettings)
+    public Engine(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, bool onTop = false) : base(gameWindowSettings, nativeWindowSettings)
     {
         OnTop = onTop;
     }

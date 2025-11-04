@@ -16,7 +16,8 @@ game.Run();
 and create an Entrypoint.cs which looks something like this:
 
 ```
-using Patchwork.Engine;
+using Patchwork;
+using Patchwork.PECS;
 using Patchwork.Render;
 
 public static class Entrypoint
@@ -28,7 +29,7 @@ public static class Entrypoint
     public static IRenderSystem Renderer()
     {
 	MyRenderSystem system = new();
-        ECS.RegisterSystem(system);
+        ECS.Instance.RegisterSystem(system);
         return system;
     }
     public static void Close()
