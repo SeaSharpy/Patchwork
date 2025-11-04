@@ -10,6 +10,7 @@ using OpenTK.Windowing.Desktop;
 var gameSettings = GameWindowSettings.Default;
 var windowSettings = NativeWindowSettings.Default;
 using var game = new Engine(gameSettings, windowSettings);
+game.Title = "Loading...";
 game.Run();
 ```
 
@@ -24,7 +25,7 @@ public static class Entrypoint
 {
     public static void Init()
     {
-        Engine.Instance.Title = "Game!";
+	Engine.Instance.Title = "Game!";
     }
     public static IRenderSystem Renderer()
     {

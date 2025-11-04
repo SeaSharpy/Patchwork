@@ -6,6 +6,7 @@ using Patchwork.Render;
 using System.Runtime.InteropServices;
 using Patchwork.Render.Objects;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using OpenTK.Graphics.OpenGL4;
 using Monitor = OpenTK.Windowing.GraphicsLibraryFramework.Monitor;
 using Patchwork.Audio;
 namespace Patchwork;
@@ -87,6 +88,7 @@ public class Engine : GameWindow
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
+        GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
         ECS.Render();
         PostRender?.Invoke();
         SwapBuffers();
