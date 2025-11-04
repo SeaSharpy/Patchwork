@@ -1,0 +1,9 @@
+Assets/**
+Game/**
+bin/**
+obj/**
+font.py
+GameNoEngine.csproj
+GameNoEngine.sln
+ComicMono.ttf
+STYLE_GUIDELINES.md

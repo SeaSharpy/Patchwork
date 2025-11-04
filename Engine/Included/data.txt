@@ -1,0 +1,3 @@
+shadertemplate_Default_vertex: default_vertex.glsl
+shadertemplate_Default_fragment: default_fragment.glsl
+lib: lib.glsl
