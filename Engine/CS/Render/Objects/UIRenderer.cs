@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using static Patchwork.Engine;
@@ -163,6 +164,76 @@ public sealed class ImmediateQuadDraw : INonBatched
     }
 }
 
+public sealed class LineDraw : INonBatched
+{
+    public Vector2 Start;
+    public Vector2 End;
+    public float Thickness;
+    public Vector4 Color;
+
+    public LineDraw(Vector2 start, Vector2 end, float thickness, Vector4 color)
+    {
+        Start = start;
+        End = end;
+        Thickness = thickness;
+        Color = color;
+    }
+
+    public void Execute()
+    {
+        Vector2 delta = End - Start;
+        float thickness = MathF.Max(Thickness, 1f);
+        if (delta.LengthSquared <= float.Epsilon)
+        {
+            float half = thickness * 0.5f;
+            float[] pointVertices = new float[]
+            {
+                Start.X - half, Start.Y - half,
+                Start.X + half, Start.Y - half,
+                Start.X + half, Start.Y + half,
+                Start.X - half, Start.Y - half,
+                Start.X + half, Start.Y + half,
+                Start.X - half, Start.Y + half,
+            };
+
+            UploadAndDraw(pointVertices);
+            return;
+        }
+
+        float length = delta.Length;
+        Vector2 direction = delta / length;
+        Vector2 normal = new Vector2(-direction.Y, direction.X) * (thickness * 0.5f);
+
+        float[] vertices = new float[]
+        {
+            Start.X - normal.X, Start.Y - normal.Y,
+            Start.X + normal.X, Start.Y + normal.Y,
+            End.X + normal.X,   End.Y + normal.Y,
+            Start.X - normal.X, Start.Y - normal.Y,
+            End.X + normal.X,   End.Y + normal.Y,
+            End.X - normal.X,   End.Y - normal.Y,
+        };
+
+        UploadAndDraw(vertices);
+    }
+
+    void UploadAndDraw(float[] vertices)
+    {
+        GL.BindVertexArray(UIRenderer.LineVAOHandle);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, UIRenderer.LineVBOHandle);
+        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StreamDraw);
+
+        UIRenderer.LineShader.Use();
+        UIRenderer.LineShader.Set("Viewport", Viewport);
+        UIRenderer.LineShader.Set("Color", Color);
+
+        GL.DrawArrays(PrimitiveType.Triangles, 0, vertices.Length / 2);
+
+        GL.BindVertexArray(0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+    }
+}
+
 public static class UIRenderer
 {
     public static Font Font = null!;
@@ -172,6 +243,9 @@ public static class UIRenderer
 
     static int QuadVAO;
     static int QuadVBO;
+
+    static int LineVAO;
+    static int LineVBO;
 
     static int InstanceSSBO;
 
@@ -389,6 +463,28 @@ void main()
 
     static int TextStride = sizeof(float) * 4;
 
+    public static Shader LineShader = Shader.Text(
+        @"
+layout(location=0) in vec2 Position;
+uniform ivec4 Viewport;
+void main() {
+    vec2 tl = Position - vec2(Viewport.xy);
+    vec2 wp = tl / vec2(Viewport.zw);
+    vec2 ndc = wp * 2.0 - 1.0;
+    gl_Position = vec4(ndc, 0.0, 1.0);
+}
+        ",
+        @"
+out vec4 FragColor;
+uniform vec4 Color;
+void main()
+{
+    FragColor = Color;
+}
+",
+        "Line"
+        );
+
     public static float Spacing => Font.Spacing;
     public static float Descent => Font.Descent;
 
@@ -396,6 +492,8 @@ void main()
     public static string SecondaryDescenders = ",_;|()[]{}\\";
 
     public static int QuadVAOHandle => QuadVAO;
+    public static int LineVAOHandle => LineVAO;
+    public static int LineVBOHandle => LineVBO;
 
     public static void Init()
     {
@@ -431,6 +529,15 @@ void main()
         GL.BindVertexArray(0);
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 
+        LineVAO = GL.GenVertexArray();
+        LineVBO = GL.GenBuffer();
+        GL.BindVertexArray(LineVAO);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, LineVBO);
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, sizeof(float) * 2, 0);
+        GL.BindVertexArray(0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
         InstanceSSBO = GL.GenBuffer();
     }
 
@@ -439,12 +546,16 @@ void main()
         QuadImmediate.Dispose();
         QuadBatch.Dispose();
         TextShader.Dispose();
+        LineShader.Dispose();
 
         GL.DeleteBuffer(TextVBO);
         GL.DeleteVertexArray(TextVAO);
 
         GL.DeleteBuffer(QuadVBO);
         GL.DeleteVertexArray(QuadVAO);
+
+        GL.DeleteBuffer(LineVBO);
+        GL.DeleteVertexArray(LineVAO);
 
         GL.DeleteBuffer(InstanceSSBO);
     }
@@ -518,6 +629,19 @@ void main()
     static void Enqueue(QuadInstanceData data)
     {
         Instances.Add(data);
+    }
+
+    public static float MeasureLength(float textSize, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return 0f;
+
+        int size = (int)textSize;
+        if (size <= 0)
+            return 0f;
+
+        float advance = Spacing * size;
+        return text.Length * advance;
     }
 
     public static void DrawText(string text, Vector2 topLeft, int charSize, Vector4 color)
@@ -621,5 +745,11 @@ void main()
             ImmediateQuadDraw item = new ImmediateQuadDraw(topLeft, size, cornerRadius, texture, color);
             QueueNonBatched(item);
         }
+    }
+
+    public static void DrawLine(Vector2 start, Vector2 end, float thickness, Vector4 color)
+    {
+        LineDraw item = new LineDraw(start, end, thickness, color);
+        QueueNonBatched(item);
     }
 }
