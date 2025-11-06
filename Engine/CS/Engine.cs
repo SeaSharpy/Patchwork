@@ -3,7 +3,6 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Graphics.OpenGL4;
 using Monitor = OpenTK.Windowing.GraphicsLibraryFramework.Monitor;
-using System.Dynamic;
 namespace Patchwork;
 
 public class Engine : GameWindow

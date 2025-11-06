@@ -1,8 +1,5 @@
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Mathematics;
-using Patchwork.PECS;
-using Patchwork.Render.Objects;
 using static Patchwork.Render.Objects.MeshAtlas;
 
 namespace Patchwork.Render;
@@ -175,8 +172,6 @@ public class BuiltinRenderer : IRenderSystem
         GL.BufferData(BufferTarget.ShaderStorageBuffer, 1, IntPtr.Zero, BufferUsageHint.DynamicDraw);
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
     }
-
-    public void Update() { }
 
     public void Render()
     {
