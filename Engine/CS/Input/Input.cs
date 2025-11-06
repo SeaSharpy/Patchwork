@@ -4,31 +4,31 @@ public static class InputState
 {
     public static void Update
     (
-        Vector2 Position,
-        Vector2 PreviousPosition,
-        Vector2 Delta,
-        ButtonState LeftButtonDown,
-        ButtonState RightButtonDown,
-        ButtonState MiddleButtonDown,
-        ButtonState Button4Down,
-        ButtonState Button5Down,
-        Vector2 Scroll,
-        Vector2 PreviousScroll,
-        Vector2 DeltaScroll,
+        Vector2 position,
+        Vector2 previousPosition,
+        Vector2 delta,
+        ButtonState leftButtonDown,
+        ButtonState rightButtonDown,
+        ButtonState middleButtonDown,
+        ButtonState button4Down,
+        ButtonState button5Down,
+        Vector2 scroll,
+        Vector2 previousScroll,
+        Vector2 deltaScroll,
         OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState state
     )
     {
-        MouseStateInternal.Position = Position;
-        MouseStateInternal.PreviousPosition = PreviousPosition;
-        MouseStateInternal.Delta = Delta;
-        MouseStateInternal.LeftButtonDown = LeftButtonDown;
-        MouseStateInternal.RightButtonDown = RightButtonDown;
-        MouseStateInternal.MiddleButtonDown = MiddleButtonDown;
-        MouseStateInternal.Button4Down = Button4Down;
-        MouseStateInternal.Button5Down = Button5Down;
-        MouseStateInternal.Scroll = Scroll;
-        MouseStateInternal.PreviousScroll = PreviousScroll;
-        MouseStateInternal.DeltaScroll = DeltaScroll;
+        MouseStateInternal.Position = position;
+        MouseStateInternal.PreviousPosition = previousPosition;
+        MouseStateInternal.Delta = delta;
+        MouseStateInternal.LeftButtonDown = leftButtonDown;
+        MouseStateInternal.RightButtonDown = rightButtonDown;
+        MouseStateInternal.MiddleButtonDown = middleButtonDown;
+        MouseStateInternal.Button4Down = button4Down;
+        MouseStateInternal.Button5Down = button5Down;
+        MouseStateInternal.Scroll = scroll;
+        MouseStateInternal.PreviousScroll = previousScroll;
+        MouseStateInternal.DeltaScroll = deltaScroll;
         KeyboardStateInternal.InternalState = state;
     }
 }

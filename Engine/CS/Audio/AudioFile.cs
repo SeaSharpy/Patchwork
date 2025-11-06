@@ -65,10 +65,9 @@ public sealed class AudioFile : IDisposable
         if (stream == null) throw new ArgumentNullException(nameof(stream));
         using BinaryReader br = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
-        // ---- RIFF header ----
         string riff = new string(br.ReadChars(4));
         if (riff != "RIFF") throw new InvalidDataException("Not a RIFF file.");
-        int riffSize = br.ReadInt32(); // unused
+        br.ReadInt32();
         string wave = new string(br.ReadChars(4));
         if (wave != "WAVE") throw new InvalidDataException("Not a WAVE file.");
 

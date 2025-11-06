@@ -158,7 +158,7 @@ public static class MeshAtlas
     {
         EnsureInit();
 
-        List<MeshSlice> added = new List<MeshSlice>();
+        List<MeshSlice> added = [];
         int baseVertex = Vertices.Count / 16;
         int firstIndex = Indices.Count;
 
@@ -296,7 +296,7 @@ public static class MeshAtlas
         Vertices.AddRange(vertexData.ToArray());
         Indices.AddRange(indexData.ToArray());
 
-        List<MeshSlice> added = new List<MeshSlice>(localSliceArray.Length);
+        List<MeshSlice> added = new(localSliceArray.Length);
         foreach (MeshSlice sLocal in localSliceArray)
         {
             MeshSlice sGlobal = new MeshSlice

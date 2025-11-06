@@ -143,7 +143,7 @@ public class Entity : IDisposable
         Type type = typeof(T);
         if (!Components.TryGetValue(type, out List<IDataComponent>? list))
         {
-            list = new List<IDataComponent>();
+            list = [];
             Components[type] = list;
         }
         if (component.Entity != null)
