@@ -16,27 +16,27 @@ public static class IncludedFiles
         AssemblyRef = typeof(IncludedFiles).Assembly;
         AllNames = AssemblyRef.GetManifestResourceNames();
 
-        var aliasMap = ReadAliasMap("data.txt");
+        Dictionary<string, string> aliasMap = ReadAliasMap("data.txt");
 
-        foreach (var (aliasKey, resourceHint) in aliasMap)
+        foreach ((string aliasKey, string resourceHint) in aliasMap)
         {
-            var fullName = ResolveResourceName(resourceHint);
-            var text = ReadResourceText(fullName);
+            string fullName = ResolveResourceName(resourceHint);
+            string text = ReadResourceText(fullName);
             AddWithAliases(aliasKey, fullName, text);
         }
 
-        var loadedFullNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (_, hint) in aliasMap)
+        HashSet<string> loadedFullNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string _, string hint) in aliasMap)
             loadedFullNames.Add(ResolveResourceName(hint));
 
-        foreach (var fullName in AllNames!)
+        foreach (string fullName in AllNames!)
         {
             if (fullName.EndsWith(".resources", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (loadedFullNames.Contains(fullName))
                 continue;
 
-            var text = ReadResourceText(fullName);
+            string text = ReadResourceText(fullName);
             AddWithAliases(null, fullName, text);
         }
     }
@@ -47,10 +47,10 @@ public static class IncludedFiles
         if (!string.IsNullOrWhiteSpace(primaryKey))
             TryAdd(primaryKey!, text);
 
-        var fileWithExt = GetFileNameWithExtension(fullResourceName);
+        string fileWithExt = GetFileNameWithExtension(fullResourceName);
         TryAdd(fileWithExt, text);
 
-        var fileNoExt = Path.GetFileNameWithoutExtension(fileWithExt);
+        string fileNoExt = Path.GetFileNameWithoutExtension(fileWithExt);
         if (!string.IsNullOrEmpty(fileNoExt))
             TryAdd(fileNoExt, text);
     }
@@ -63,29 +63,29 @@ public static class IncludedFiles
 
     static string ReadResourceText(string fullName)
     {
-        using var stream = AssemblyRef!.GetManifestResourceStream(fullName)
+        using Stream stream = AssemblyRef!.GetManifestResourceStream(fullName)
             ?? throw new Exception($"Could not find embedded resource '{fullName}'.");
-        using var reader = new StreamReader(stream, Encoding.UTF8, true);
+        using StreamReader reader = new StreamReader(stream, Encoding.UTF8, true);
         return reader.ReadToEnd();
     }
 
     static Dictionary<string, string> ReadAliasMap(string dataTxtSimpleName)
     {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        var fullName = ResolveResourceNameOrNull(dataTxtSimpleName);
+        string? fullName = ResolveResourceNameOrNull(dataTxtSimpleName);
         if (fullName == null) return map;
 
-        using var stream = AssemblyRef!.GetManifestResourceStream(fullName)!;
-        using var reader = new StreamReader(stream, Encoding.UTF8, true);
-        foreach (var raw in reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        using Stream stream = AssemblyRef!.GetManifestResourceStream(fullName)!;
+        using StreamReader reader = new StreamReader(stream, Encoding.UTF8, true);
+        foreach (string raw in reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (raw.StartsWith('#') || raw.StartsWith("//")) continue;
-            var parts = raw.Split(':', 2, StringSplitOptions.TrimEntries);
+            string[] parts = raw.Split(':', 2, StringSplitOptions.TrimEntries);
             if (parts.Length != 2) continue;
 
-            var key = parts[0];
-            var hint = parts[1];
+            string key = parts[0];
+            string hint = parts[1];
             if (!string.IsNullOrWhiteSpace(key) && !map.ContainsKey(key))
                 map[key] = hint;
         }
@@ -94,7 +94,7 @@ public static class IncludedFiles
 
     static string ResolveResourceName(string hint)
     {
-        var full = ResolveResourceNameOrNull(hint);
+        string? full = ResolveResourceNameOrNull(hint);
         if (full != null) return full;
 
         throw new Exception($"Embedded resource not found for hint '{hint}'. " +
@@ -106,21 +106,21 @@ public static class IncludedFiles
         if (AssemblyRef == null) return null;
         AllNames ??= AssemblyRef.GetManifestResourceNames();
 
-        var exact = Array.Find(AllNames, n => n.Equals(hint, StringComparison.OrdinalIgnoreCase));
+        string? exact = Array.Find(AllNames, n => n.Equals(hint, StringComparison.OrdinalIgnoreCase));
         if (exact != null) return exact;
 
-        var dotHint = hint.Replace('/', '.').Replace('\\', '.');
+        string dotHint = hint.Replace('/', '.').Replace('\\', '.');
         exact = Array.Find(AllNames, n => n.Equals(dotHint, StringComparison.OrdinalIgnoreCase));
         if (exact != null) return exact;
 
-        var suffix = dotHint.StartsWith('.') ? dotHint : "." + dotHint;
-        var bySuffix = AllNames.LastOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+        string suffix = dotHint.StartsWith('.') ? dotHint : "." + dotHint;
+        string? bySuffix = AllNames.LastOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
         if (bySuffix != null) return bySuffix;
 
-        var fileName = Path.GetFileName(hint);
+        string fileName = Path.GetFileName(hint);
         if (!string.IsNullOrEmpty(fileName))
         {
-            var suffix2 = "." + fileName;
+            string suffix2 = "." + fileName;
             bySuffix = AllNames.LastOrDefault(n => n.EndsWith(suffix2, StringComparison.OrdinalIgnoreCase));
             if (bySuffix != null) return bySuffix;
         }
@@ -130,7 +130,7 @@ public static class IncludedFiles
 
     static string GetFileNameWithExtension(string full)
     {
-        var parts = full.Split('.');
+        string[] parts = full.Split('.');
         return parts.Length >= 2 ? $"{parts[^2]}.{parts[^1]}" : full;
     }
 }

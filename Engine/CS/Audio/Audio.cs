@@ -1,6 +1,4 @@
-using System.Runtime.InteropServices;
 using OpenTK.Audio.OpenAL;
-using Patchwork.Audio.Objects;
 namespace Patchwork.Audio;
 
 public sealed class AudioPlayer : IDisposable
@@ -104,7 +102,7 @@ public sealed class AudioPlayer : IDisposable
     private static readonly HashSet<AudioPlayer> HandledAudios = new();
     public static void Update()
     {
-        foreach (var audio in HandledAudios.ToArray())
+        foreach (AudioPlayer? audio in HandledAudios.ToArray())
             if (audio.State == ALSourceState.Stopped)
                 HandledAudios.Remove(audio);
     }
@@ -132,7 +130,7 @@ public sealed class AudioPlayer : IDisposable
     }
     public static void DisposeAll()
     {
-        foreach (var audio in HandledAudios.ToArray())
+        foreach (AudioPlayer? audio in HandledAudios.ToArray())
             audio.Dispose();
         HandledAudios.Clear();
         ALC.DestroyContext(Context);

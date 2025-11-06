@@ -43,7 +43,7 @@ public sealed class Shader : IDisposable
         string user = StripComments(File.ReadAllText(path));
         string userExpanded = Preprocess(user, path);
 
-        var sections = ParseSections(userExpanded);
+        Dictionary<string, string> sections = ParseSections(userExpanded);
 
         string vTemplateRaw = StripComments(IncludedFiles.Files["shadertemplate_" + template + "_vertex"]);
         string fTemplateRaw = StripComments(IncludedFiles.Files["shadertemplate_" + template + "_fragment"]);
@@ -131,8 +131,8 @@ public sealed class Shader : IDisposable
         if (string.IsNullOrEmpty(source))
             return "<no source>";
 
-        var sb = new StringBuilder(source.Length + 128);
-        var lines = source.Replace("\r\n", "\n").Split('\n');
+        StringBuilder sb = new StringBuilder(source.Length + 128);
+        string[] lines = source.Replace("\r\n", "\n").Split('\n');
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -152,8 +152,8 @@ public sealed class Shader : IDisposable
 
         source = StripComments(source);
 
-        var sb = new StringBuilder(source.Length + 1024);
-        var lines = source.Replace("\r\n", "\n").Split('\n');
+        StringBuilder sb = new StringBuilder(source.Length + 1024);
+        string[] lines = source.Replace("\r\n", "\n").Split('\n');
 
         string baseDir = Path.GetDirectoryName(path ?? "") ?? Environment.CurrentDirectory;
 
@@ -164,7 +164,7 @@ public sealed class Shader : IDisposable
 
             if (line.StartsWith("#include"))
             {
-                var parts = line.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(" ", StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 3)
                     throw new Exception($"Malformed include at line {i + 1} of {path ?? "<memory>"}: '{raw}'");
 
@@ -210,8 +210,8 @@ public sealed class Shader : IDisposable
 
         templateSource = StripComments(templateSource);
 
-        var sb = new StringBuilder(templateSource.Length + 256);
-        var lines = templateSource.Replace("\r\n", "\n").Split('\n');
+        StringBuilder sb = new StringBuilder(templateSource.Length + 256);
+        string[] lines = templateSource.Replace("\r\n", "\n").Split('\n');
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -220,13 +220,13 @@ public sealed class Shader : IDisposable
 
             if (line.StartsWith("#include"))
             {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 2)
                     throw new Exception($"Malformed template include at line {i + 1} of {templateName}: '{raw}'");
 
                 string key = parts[1].Trim('"');
 
-                if (!IncludedFiles.Files.TryGetValue(key, out var incSource))
+                if (!IncludedFiles.Files.TryGetValue(key, out string? incSource))
                     throw new FileNotFoundException($"Template #include not found in IncludedFiles: '{key}'");
 
                 if (!includes.Add($"template::{key}"))
@@ -238,7 +238,7 @@ public sealed class Shader : IDisposable
             }
             else if (line.StartsWith("#disallow"))
             {
-                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 2)
                     throw new Exception($"Malformed template disallow at line {i + 1} of {templateName}: '{raw}'");
 
@@ -285,14 +285,14 @@ public sealed class Shader : IDisposable
 
     private static Dictionary<string, string> ParseSections(string src)
     {
-        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (string.IsNullOrWhiteSpace(src))
             return dict;
 
-        var lines = src.Replace("\r\n", "\n").Split('\n');
+        string[] lines = src.Replace("\r\n", "\n").Split('\n');
         string? current = null;
-        var sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
 
         void Flush()
         {
@@ -305,9 +305,9 @@ public sealed class Shader : IDisposable
 
         for (int i = 0; i < lines.Length; i++)
         {
-            var line = lines[i];
+            string line = lines[i];
 
-            var m = Regex.Match(line, @"^\s*([A-Za-z_]\w*)\s*:\s*$");
+            Match m = Regex.Match(line, @"^\s*([A-Za-z_]\w*)\s*:\s*$");
             if (m.Success)
             {
                 Flush();
@@ -329,16 +329,16 @@ public sealed class Shader : IDisposable
     {
         return TemplateUseRegex.Replace(templateSource, me =>
         {
-            var name = me.Groups["name"].Value;
+            string name = me.Groups["name"].Value;
 
-            sections.TryGetValue(name, out var body);
+            sections.TryGetValue(name, out string? body);
             body ??= string.Empty;
 
             if (disallows != null && body.Length != 0)
             {
-                foreach (var disallow in disallows)
+                foreach (string disallow in disallows)
                 {
-                    var pat = $@"\A\s*{Regex.Escape(disallow)}\s*\z";
+                    string pat = $@"\A\s*{Regex.Escape(disallow)}\s*\z";
                     if (Regex.IsMatch(body, pat, RegexOptions.CultureInvariant))
                         throw new Exception($"Disallowed item '{disallow}' found in shader template");
                 }

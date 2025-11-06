@@ -1,26 +1,14 @@
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using Patchwork.PECS;
 using Patchwork.Render.Objects;
 using static Patchwork.Render.Objects.MeshAtlas;
-using OpenTK.Mathematics;
 
 namespace Patchwork.Render;
 
 public class BuiltinRenderer : IRenderSystem
 {
-    public enum DebugViewMode
-    {
-        Composite = 0,
-        Normals = 1,
-        GeoNormals = 2,
-        MaterialIds = 3,
-        MotionVectors = 4,
-        Depth = 5,
-    }
-
-    public DebugViewMode DebugView { get; set; } = DebugViewMode.Composite;
-
     [StructLayout(LayoutKind.Sequential)]
     private struct DrawElementsIndirectCommand
     {
@@ -72,12 +60,6 @@ public class BuiltinRenderer : IRenderSystem
     private int DepthTexture = 0;
     private int GBufferWidth = 0;
     private int GBufferHeight = 0;
-
-    private Shader? DebugViewShader = null;
-    private int DebugViewVao = 0;
-
-    private const float NearPlane = 0.01f;
-    private const float FarPlane = 100f;
 
     private static readonly float[] ClearColorVector = new float[4] { 0f, 0f, 0f, 0f };
     private static readonly uint[] ClearUIntVector = new uint[1] { 0u };
@@ -155,7 +137,7 @@ public class BuiltinRenderer : IRenderSystem
         DepthTexture = CreateAttachmentTexture(width, height, PixelInternalFormat.DepthComponent24, PixelFormat.DepthComponent, PixelType.Float);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, DepthTexture, 0);
 
-        var drawBuffers = new[]
+        DrawBuffersEnum[] drawBuffers = new[]
         {
             DrawBuffersEnum.ColorAttachment0,
             DrawBuffersEnum.ColorAttachment1,
@@ -166,79 +148,24 @@ public class BuiltinRenderer : IRenderSystem
 
         GL.DrawBuffers(drawBuffers.Length, drawBuffers);
 
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+        FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         if (status != FramebufferErrorCode.FramebufferComplete)
             throw new Exception($"GBuffer framebuffer incomplete: {status}");
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
-    private void EnsureDebugViewResources()
-    {
-        if (DebugViewVao == 0)
-            DebugViewVao = GL.GenVertexArray();
-
-        DebugViewShader ??= new Shader("shaders/debug_view.vert", "shaders/debug_view.frag", "DebugView");
-    }
-
     private void RenderFinalOutput(Box viewport)
     {
-        if (DebugView == DebugViewMode.Composite)
-        {
-            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, GBufferFbo);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
-            GL.BlitFramebuffer(
-                0, 0, GBufferWidth, GBufferHeight,
-                viewport.X, viewport.Y, viewport.X + viewport.Width, viewport.Y + viewport.Height,
-                ClearBufferMask.ColorBufferBit,
-                BlitFramebufferFilter.Linear);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            return;
-        }
-
-        EnsureDebugViewResources();
-
-        bool depthWasEnabled = GL.IsEnabled(EnableCap.DepthTest);
-        bool blendWasEnabled = GL.IsEnabled(EnableCap.Blend);
-
-        if (depthWasEnabled)
-            GL.Disable(EnableCap.DepthTest);
-        if (blendWasEnabled)
-            GL.Disable(EnableCap.Blend);
-
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, GBufferFbo);
+        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+        GL.BlitFramebuffer(
+            0, 0, GBufferWidth, GBufferHeight,
+            viewport.X, viewport.Y, viewport.X + viewport.Width, viewport.Y + viewport.Height,
+            ClearBufferMask.ColorBufferBit,
+            BlitFramebufferFilter.Linear);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.Viewport(viewport.X, viewport.Y, viewport.Width, viewport.Height);
-
-        DebugViewShader!.Use();
-        DebugViewShader.Set("uMode", (int)DebugView);
-        DebugViewShader.Set("uViewportSize", new Vector2(viewport.Width, viewport.Height));
-        DebugViewShader.Set("uDepthRange", new Vector2(NearPlane, FarPlane));
-        DebugViewShader.Set("uColor", 0);
-        DebugViewShader.Set("uNormal", 1);
-        DebugViewShader.Set("uGeoNormal", 2);
-        DebugViewShader.Set("uMaterialId", 3);
-        DebugViewShader.Set("uMotion", 4);
-        DebugViewShader.Set("uDepth", 5);
-
-        GL.BindTextureUnit(0, ColorTexture);
-        GL.BindTextureUnit(1, NormalTexture);
-        GL.BindTextureUnit(2, GeoNormalTexture);
-        GL.BindTextureUnit(3, MaterialIdTexture);
-        GL.BindTextureUnit(4, MotionVectorTexture);
-        GL.BindTextureUnit(5, DepthTexture);
-
-        if (DebugViewVao == 0)
-            DebugViewVao = GL.GenVertexArray();
-
-        GL.BindVertexArray(DebugViewVao);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-        GL.BindVertexArray(0);
-
-        if (depthWasEnabled)
-            GL.Enable(EnableCap.DepthTest);
-        if (blendWasEnabled)
-            GL.Enable(EnableCap.Blend);
     }
 
     public void Load()
@@ -253,7 +180,7 @@ public class BuiltinRenderer : IRenderSystem
 
     public void Render()
     {
-        Box viewport = Engine.Viewport;
+        Box viewport = Helper.Viewport;
         if (viewport.Width <= 0 || viewport.Height <= 0)
             return;
 
@@ -283,23 +210,23 @@ public class BuiltinRenderer : IRenderSystem
         GL.ClearBuffer(ClearBuffer.Color, 4, ClearColorVector);
         GL.ClearBuffer(ClearBufferCombined.DepthStencil, 0, 1f, 0);
 
-        var meshes = ECS.I.GetComponents<MeshRenderer>().ToArray();
+        MeshRenderer[] meshes = ECS.GetComponents<MeshRenderer>().ToArray();
         int instanceCount = meshes.Length;
 
         // --- matrices (all instances) ---
-        var matrixData = new GpuModelMatrix[instanceCount];
-        var activeEntities = new HashSet<Entity>();
+        GpuModelMatrix[] matrixData = new GpuModelMatrix[instanceCount];
+        HashSet<Entity> activeEntities = new HashSet<Entity>();
         for (int i = 0; i < instanceCount; i++)
         {
-            var entity = meshes[i].Entity;
+            Entity entity = meshes[i].Entity;
             activeEntities.Add(entity);
 
-            var model = entity.TransformMatrix;
-            var modelInverse = model.Inverted();
-            var normalMatrix = modelInverse;
+            Matrix4 model = entity.TransformMatrix;
+            Matrix4 modelInverse = model.Inverted();
+            Matrix4 normalMatrix = modelInverse;
             normalMatrix.Transpose(); // inverse-transpose
 
-            if (!PreviousModelMatrices.TryGetValue(entity, out var previousModel))
+            if (!PreviousModelMatrices.TryGetValue(entity, out Matrix4 previousModel))
                 previousModel = model;
 
             matrixData[i] = new GpuModelMatrix(model, modelInverse, normalMatrix, previousModel);
@@ -308,7 +235,7 @@ public class BuiltinRenderer : IRenderSystem
 
         if (PreviousModelMatrices.Count > activeEntities.Count)
         {
-            foreach (var entity in PreviousModelMatrices.Keys.ToArray())
+            foreach (Entity? entity in PreviousModelMatrices.Keys.ToArray())
             {
                 if (!activeEntities.Contains(entity))
                     PreviousModelMatrices.Remove(entity);
@@ -319,7 +246,7 @@ public class BuiltinRenderer : IRenderSystem
         int matricesBytes = instanceCount * (int)ModelMatrixSize;
         if (instanceCount > 0)
         {
-            var handle = GCHandle.Alloc(matrixData, GCHandleType.Pinned);
+            GCHandle handle = GCHandle.Alloc(matrixData, GCHandleType.Pinned);
             try
             {
                 GL.BufferData(BufferTarget.ShaderStorageBuffer, matricesBytes, handle.AddrOfPinnedObject(), BufferUsageHint.DynamicDraw);
@@ -334,45 +261,44 @@ public class BuiltinRenderer : IRenderSystem
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
 
         // --- camera & matrices for sorting ---
-        var cameraWorld = Engine.Camera.TransformMatrix;
-        var viewMatrix = cameraWorld.Inverted();
-        float aspectRatio = viewport.Height != 0 ? (float)viewport.Width / viewport.Height : 1f;
-        Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(60f), aspectRatio, NearPlane, FarPlane);
+        Matrix4 cameraWorld = Helper.Camera.TransformMatrix;
+        Matrix4 viewMatrix = cameraWorld.Inverted();
+        Matrix4 projection = Helper.CameraProjection;
         Matrix4 viewProjection = viewMatrix * projection;
-        if (!PreviousViewProjectionByCamera.TryGetValue(Engine.Camera, out var previousViewProjection))
+        if (!PreviousViewProjectionByCamera.TryGetValue(Helper.Camera, out Matrix4 previousViewProjection))
             previousViewProjection = viewProjection;
-        PreviousViewProjectionByCamera[Engine.Camera] = viewProjection;
+        PreviousViewProjectionByCamera[Helper.Camera] = viewProjection;
 
-        var camPos = Engine.Camera.Transform.Position;
+        Vector3 camPos = Helper.Camera.Transform.Position;
 
         // --- per-shader materials array (same backing for both passes) ---
-        var materialTypeByShader = new Dictionary<Shader, Type>();
-        var materialArrayByShader = new Dictionary<Shader, Array>();
+        Dictionary<Shader, Type> materialTypeByShader = new Dictionary<Shader, Type>();
+        Dictionary<Shader, Array> materialArrayByShader = new Dictionary<Shader, Array>();
 
         // --- command lists split by opaque/transparent ---
-        var perShaderOpaqueCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
-        var perShaderTransparentCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
+        Dictionary<Shader, List<DrawElementsIndirectCommand>> perShaderOpaqueCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
+        Dictionary<Shader, List<DrawElementsIndirectCommand>> perShaderTransparentCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
 
         // Temp list so we can sort by distance per shader/per bucket
-        var tempOpaque = new Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>>();
-        var tempTransparent = new Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>>();
+        Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>> tempOpaque = new Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>>();
+        Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>> tempTransparent = new Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>>();
 
         // Build commands + material arrays
         for (int i = 0; i < instanceCount; i++)
         {
-            var mr = meshes[i];
+            MeshRenderer mr = meshes[i];
 
-            if (!TryGetSlice(mr.Mesh, out var slice))
+            if (!TryGetSlice(mr.Mesh, out MeshSlice slice))
                 throw new Exception($"Mesh '{mr.Mesh}' not found in global MeshAtlas.");
 
-            var shader = mr.Shader;
+            Shader shader = mr.Shader;
 
             // Prepare material array per shader (value-type requirement retained)
-            var matVal = mr.Material ?? throw new Exception(
+            object matVal = mr.Material ?? throw new Exception(
                 $"Material payload is null for instance {i} (shader '{mr.Shader?.Name ?? "<null>"}').");
 
-            var matType = matVal.GetType();
-            if (materialTypeByShader.TryGetValue(shader, out var existing))
+            Type matType = matVal.GetType();
+            if (materialTypeByShader.TryGetValue(shader, out Type? existing))
             {
                 if (existing != matType)
                     throw new Exception($"Shader '{shader.Name}' bound with multiple material types: '{existing}' and '{matType}'. This renderer expects exactly one material struct type per shader.");
@@ -388,7 +314,7 @@ public class BuiltinRenderer : IRenderSystem
             materialArrayByShader[shader].SetValue(matVal, i);
 
             // Create the indirect command referencing this instance
-            var command = new DrawElementsIndirectCommand
+            DrawElementsIndirectCommand command = new DrawElementsIndirectCommand
             {
                 Count = (uint)slice.IndexCount,
                 InstanceCount = 1u,
@@ -398,11 +324,11 @@ public class BuiltinRenderer : IRenderSystem
             };
 
             // Distance for sorting (camera space approx via world-space distance)
-            var worldPos = matrixData[i].Model.ExtractTranslation();
+            Vector3 worldPos = matrixData[i].Model.ExtractTranslation();
             float dist2 = (worldPos - camPos).LengthSquared;
 
-            var bucket = mr.Transparent ? tempTransparent : tempOpaque;
-            if (!bucket.TryGetValue(shader, out var list))
+            Dictionary<Shader, List<(float dist, DrawElementsIndirectCommand cmd)>> bucket = mr.Transparent ? tempTransparent : tempOpaque;
+            if (!bucket.TryGetValue(shader, out List<(float dist, DrawElementsIndirectCommand cmd)>? list))
                 bucket[shader] = list = new List<(float, DrawElementsIndirectCommand)>();
             list.Add((dist2, command));
         }
@@ -411,11 +337,11 @@ public class BuiltinRenderer : IRenderSystem
         void PruneBuffers(Dictionary<Shader, int> buffers, Dictionary<Shader, List<DrawElementsIndirectCommand>> active)
         {
             if (buffers.Count == 0) return;
-            var toRemove = new List<Shader>();
-            foreach (var kv in buffers)
+            List<Shader> toRemove = new List<Shader>();
+            foreach (KeyValuePair<Shader, int> kv in buffers)
                 if (!active.ContainsKey(kv.Key))
                     toRemove.Add(kv.Key);
-            foreach (var s in toRemove)
+            foreach (Shader s in toRemove)
             {
                 GL.DeleteBuffer(buffers[s]);
                 buffers.Remove(s);
@@ -431,7 +357,7 @@ public class BuiltinRenderer : IRenderSystem
         {
             outCmds.Clear();
 
-            foreach (var (shader, list) in source)
+            foreach ((Shader shader, List<(float dist, DrawElementsIndirectCommand cmd)> list) in source)
             {
                 // Sort by distance
                 if (frontToBack)
@@ -439,7 +365,7 @@ public class BuiltinRenderer : IRenderSystem
                 else
                     list.Sort((a, b) => b.dist.CompareTo(a.dist));
 
-                var cmds = list.Select(t => t.cmd).ToList();
+                List<DrawElementsIndirectCommand> cmds = list.Select(t => t.cmd).ToList();
                 outCmds[shader] = cmds;
 
                 // Ensure buffer per shader
@@ -453,8 +379,8 @@ public class BuiltinRenderer : IRenderSystem
                 GL.BindBuffer(BufferTarget.DrawIndirectBuffer, outBuffers[shader]);
                 if (cmds.Count > 0)
                 {
-                    var arr = cmds.ToArray();
-                    var handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
+                    DrawElementsIndirectCommand[] arr = cmds.ToArray();
+                    GCHandle handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
                     try
                     {
                         GL.BufferData(BufferTarget.DrawIndirectBuffer,
@@ -479,18 +405,18 @@ public class BuiltinRenderer : IRenderSystem
         // Build material SSBOs (shared for both passes)
         if (MaterialSsboByShader.Count > 0)
         {
-            var stale = MaterialSsboByShader.Keys.Where(s => !materialArrayByShader.ContainsKey(s)).ToList();
-            foreach (var s in stale)
+            List<Shader> stale = MaterialSsboByShader.Keys.Where(s => !materialArrayByShader.ContainsKey(s)).ToList();
+            foreach (Shader? s in stale)
             {
                 GL.DeleteBuffer(MaterialSsboByShader[s]);
                 MaterialSsboByShader.Remove(s);
             }
         }
-        foreach (var kv in materialArrayByShader)
+        foreach (KeyValuePair<Shader, Array> kv in materialArrayByShader)
         {
-            var shader = kv.Key;
-            var arr = kv.Value;
-            var matType = materialTypeByShader[shader];
+            Shader shader = kv.Key;
+            Array arr = kv.Value;
+            Type matType = materialTypeByShader[shader];
             int elemSize = Marshal.SizeOf(matType);
             int byteLen = instanceCount * elemSize;
 
@@ -503,7 +429,7 @@ public class BuiltinRenderer : IRenderSystem
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssbo);
             if (instanceCount > 0)
             {
-                var handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
+                GCHandle handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
                 GL.BufferData(BufferTarget.ShaderStorageBuffer, byteLen, handle.AddrOfPinnedObject(), BufferUsageHint.DynamicDraw);
                 handle.Free();
             }
@@ -515,8 +441,8 @@ public class BuiltinRenderer : IRenderSystem
         }
 
         // Prepare sorted & uploaded command buffers
-        var opaqueCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
-        var transparentCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
+        Dictionary<Shader, List<DrawElementsIndirectCommand>> opaqueCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
+        Dictionary<Shader, List<DrawElementsIndirectCommand>> transparentCmds = new Dictionary<Shader, List<DrawElementsIndirectCommand>>();
 
         // Depth prepass (opaque, front-to-back)
         BuildPassBuffers(tempOpaque, frontToBack: true, outCmds: opaqueCmds, outBuffers: IndirectBuffersOpaque);
@@ -526,7 +452,7 @@ public class BuiltinRenderer : IRenderSystem
         // Small helper to draw a pass with a chosen command set and buffer map
         void DrawGeometry(Dictionary<Shader, List<DrawElementsIndirectCommand>> cmdMap, Dictionary<Shader, int> bufferMap, Action<Shader> setUniforms)
         {
-            foreach (var (shader, commands) in cmdMap)
+            foreach ((Shader shader, List<DrawElementsIndirectCommand> commands) in cmdMap)
             {
                 shader.Use();
                 setUniforms(shader);
@@ -569,8 +495,8 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("ViewProjection", viewProjection);
             shader.Set("PrevViewProjection", previousViewProjection);
             shader.Set("View", viewMatrix);
-            shader.Set("Time", Engine.Time);
-            shader.Set("CameraPosition", Engine.Camera.Transform.Position);
+            shader.Set("Time", Time);
+            shader.Set("CameraPosition", Camera.Transform.Position);
             shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
         });
 
@@ -584,8 +510,8 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("ViewProjection", viewProjection);
             shader.Set("PrevViewProjection", previousViewProjection);
             shader.Set("View", viewMatrix);
-            shader.Set("Time", Engine.Time);
-            shader.Set("CameraPosition", Engine.Camera.Transform.Position);
+            shader.Set("Time", Time);
+            shader.Set("CameraPosition", Camera.Transform.Position);
             shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
         });
 
@@ -604,8 +530,8 @@ public class BuiltinRenderer : IRenderSystem
                 shader.Set("ViewProjection", viewProjection);
                 shader.Set("PrevViewProjection", previousViewProjection);
                 shader.Set("View", viewMatrix);
-                shader.Set("Time", Engine.Time);
-                shader.Set("CameraPosition", Engine.Camera.Transform.Position);
+                shader.Set("Time", Time);
+                shader.Set("CameraPosition", Camera.Transform.Position);
                 shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
             });
 
@@ -627,15 +553,15 @@ public class BuiltinRenderer : IRenderSystem
             MatricesSsbo = 0;
         }
 
-        foreach (var kv in IndirectBuffersOpaque)
+        foreach (KeyValuePair<Shader, int> kv in IndirectBuffersOpaque)
             GL.DeleteBuffer(kv.Value);
         IndirectBuffersOpaque.Clear();
 
-        foreach (var kv in IndirectBuffersTransparent)
+        foreach (KeyValuePair<Shader, int> kv in IndirectBuffersTransparent)
             GL.DeleteBuffer(kv.Value);
         IndirectBuffersTransparent.Clear();
 
-        foreach (var kv in MaterialSsboByShader)
+        foreach (KeyValuePair<Shader, int> kv in MaterialSsboByShader)
             GL.DeleteBuffer(kv.Value);
         MaterialSsboByShader.Clear();
 
@@ -648,15 +574,6 @@ public class BuiltinRenderer : IRenderSystem
         DeleteGBufferTextures();
         GBufferWidth = 0;
         GBufferHeight = 0;
-
-        DebugViewShader?.Dispose();
-        DebugViewShader = null;
-
-        if (DebugViewVao != 0)
-        {
-            GL.DeleteVertexArray(DebugViewVao);
-            DebugViewVao = 0;
-        }
     }
 }
 

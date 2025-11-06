@@ -56,14 +56,14 @@ public sealed class AudioFile : IDisposable
     }
     public static AudioFile FromWav(string path)
     {
-        using var fs = File.OpenRead(path);
+        using FileStream fs = File.OpenRead(path);
         return FromWav(fs);
     }
 
     public static AudioFile FromWav(Stream stream)
     {
         if (stream == null) throw new ArgumentNullException(nameof(stream));
-        using var br = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+        using BinaryReader br = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
         // ---- RIFF header ----
         string riff = new string(br.ReadChars(4));

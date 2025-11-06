@@ -1,14 +1,16 @@
-using Patchwork.Render;
-using OpenTK.Mathematics;
 namespace Patchwork.PECS;
 
 public class ECS : IDisposable
 {
-    static readonly ECS InstanceInternal = new();
-    public static ECS Instance => InstanceInternal;
-    public static ECS I => InstanceInternal;
+    static ECS Instance = null!;
 
-    ECS() { }
+    public ECS()
+    {
+        if (Instance != null)
+            throw new Exception("ECS already initialized.");
+        Instance = this;
+        Entity.Instance = this;
+    }
 
     public readonly List<Entity> Entities = new();
     public readonly List<IDataComponent> Components = new();
@@ -16,19 +18,19 @@ public class ECS : IDisposable
     public readonly Dictionary<ISystem, bool> SystemInitialized = new();
     IRenderSystem? RenderSystem;
 
-    internal void RegisterEntity(Entity entity)
+    public void RegisterEntity(Entity entity)
     {
         if (Entities.Contains(entity))
             throw new Exception("Entity already exists");
         Entities.Add(entity);
     }
 
-    internal void DestroyEntity(Entity entity)
+    public void DestroyEntity(Entity entity)
     {
         Entities.Remove(entity);
     }
 
-    public void RegisterSystem(ISystem system)
+    private void IRegisterSystem(ISystem system)
     {
         if (system is IRenderSystem renderSystem)
         {
@@ -39,10 +41,11 @@ public class ECS : IDisposable
         Systems.Add(system);
         SystemInitialized[system] = false;
     }
+    public static void RegisterSystem(ISystem system) => Instance.IRegisterSystem(system);
 
     public void Update()
     {
-        foreach (var system in Systems.ToArray())
+        foreach (ISystem system in Systems.ToArray())
         {
             if (!SystemInitialized[system])
             {
@@ -52,21 +55,24 @@ public class ECS : IDisposable
             system.Update();
         }
 
-        foreach (var entity in Entities.ToArray())
+        foreach (Entity entity in Entities.ToArray())
             entity.Update();
     }
-    internal void AddComponent(IDataComponent component)
+    public void IAddComponent(IDataComponent component)
     {
         Components.Add(component);
     }
-    internal void RemoveComponent(IDataComponent component)
+    public static void AddComponent(IDataComponent component) => Instance.IAddComponent(component);
+    public void IRemoveComponent(IDataComponent component)
     {
         Components.Remove(component);
     }
-    public IEnumerable<T> GetComponents<T>() where T : IDataComponent
+    public static void RemoveComponent(IDataComponent component) => Instance.IRemoveComponent(component);
+    public IEnumerable<T> IGetComponents<T>() where T : IDataComponent
     {
         return Components.OfType<T>();
     }
+    public static IEnumerable<T> GetComponents<T>() where T : IDataComponent => Instance.IGetComponents<T>();
 
     public void Render()
     {
@@ -75,7 +81,7 @@ public class ECS : IDisposable
     }
     public void Dispose()
     {
-        foreach (var system in Systems.ToArray())
+        foreach (ISystem system in Systems.ToArray())
             system.Dispose();
     }
 }
@@ -99,6 +105,7 @@ public class IUpdateComponent : IDataComponent
 
 public class Entity : IDisposable
 {
+    public static ECS Instance { private get; set; } = null!;
     public Transform Transform = new();
     public Matrix4 TransformMatrix { get; private set; } = Matrix4.Identity;
     public string Name { get; private set; }
@@ -113,13 +120,13 @@ public class Entity : IDisposable
         Name = name;
         Marker = marker;
         Layers = layers ?? Array.Empty<string>();
-        ECS.I.RegisterEntity(this);
+        Instance.RegisterEntity(this);
         Entities.Add(this);
     }
 
     public static Entity[] Create(int count, Func<int, string> nameFunc)
     {
-        var result = new Entity[count];
+        Entity[] result = new Entity[count];
         for (int i = 0; i < count; i++)
         {
             result[i] = new Entity(nameFunc(i));
@@ -133,8 +140,8 @@ public class Entity : IDisposable
 
     public void AddComponent<T>(T component) where T : IDataComponent
     {
-        var type = typeof(T);
-        if (!Components.TryGetValue(type, out var list))
+        Type type = typeof(T);
+        if (!Components.TryGetValue(type, out List<IDataComponent>? list))
         {
             list = new List<IDataComponent>();
             Components[type] = list;
@@ -143,16 +150,16 @@ public class Entity : IDisposable
             throw new Exception("Component already has an entity.");
         component.Entity = this;
         list.Add(component);
-        ECS.I.AddComponent(component);
+        ECS.AddComponent(component);
     }
 
     public void RemoveComponent<T>(T component) where T : IDataComponent
     {
-        if (Components.TryGetValue(typeof(T), out var list))
+        if (Components.TryGetValue(typeof(T), out List<IDataComponent>? list))
         {
             list.Remove(component);
             component.Entity = null!;
-            ECS.I.RemoveComponent(component);
+            ECS.RemoveComponent(component);
             if (list.Count == 0)
                 Components.Remove(typeof(T));
         }
@@ -160,7 +167,7 @@ public class Entity : IDisposable
 
     public IEnumerable<T> GetComponents<T>() where T : IDataComponent
     {
-        if (Components.TryGetValue(typeof(T), out var list))
+        if (Components.TryGetValue(typeof(T), out List<IDataComponent>? list))
             return list.Cast<T>();
 
         return Enumerable.Empty<T>();
@@ -168,7 +175,7 @@ public class Entity : IDisposable
 
     public T GetComponent<T>() where T : IDataComponent
     {
-        if (Components.TryGetValue(typeof(T), out var list))
+        if (Components.TryGetValue(typeof(T), out List<IDataComponent>? list))
             return (T)list.First();
 
         return default!;
@@ -176,7 +183,7 @@ public class Entity : IDisposable
 
     public IDataComponent GetComponent(Type type)
     {
-        if (Components.TryGetValue(type, out var list))
+        if (Components.TryGetValue(type, out List<IDataComponent>? list))
             return list.First();
 
         return default!;
@@ -187,8 +194,8 @@ public class Entity : IDisposable
 
     public void Update()
     {
-        foreach (var list in Components.Values.ToArray())
-            foreach (var component in list.ToArray())
+        foreach (List<IDataComponent>? list in Components.Values.ToArray())
+            foreach (IDataComponent? component in list.ToArray())
                 if (component is IUpdateComponent c)
                     c.Update();
         TransformMatrix = Transform.Matrix();
@@ -197,17 +204,17 @@ public class Entity : IDisposable
     public static List<Entity> Entities = new();
     public static void DisposeAll()
     {
-        foreach (var entity in Entities.ToArray())
+        foreach (Entity entity in Entities.ToArray())
             entity.Dispose();
         Entities.Clear();
     }
 
     public void Dispose()
     {
-        foreach (var list in Components.Values.ToArray())
-            foreach (var component in list.ToArray())
+        foreach (List<IDataComponent>? list in Components.Values.ToArray())
+            foreach (IDataComponent? component in list.ToArray())
                 component.Entity = null!;
-        ECS.I.DestroyEntity(this);
+        Instance.DestroyEntity(this);
         Entities.Remove(this);
     }
 }

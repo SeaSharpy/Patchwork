@@ -1,5 +1,3 @@
-using OpenTK.Mathematics;
-using Patchwork.PECS;
 namespace Patchwork.Render;
 
 public struct Box

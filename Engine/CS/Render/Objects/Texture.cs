@@ -32,6 +32,10 @@ public interface Texture : IDisposable
     public PixelFormat PixelFormat { get; }
     public PixelType PixelType { get; }
 
+    public IntPtr Data { get; }
+    public int Width { get; }
+    public int Height { get; }
+
     public void Bind(int unit);
     public void Parameter(TextureParameterName name, int value);
 }
@@ -49,6 +53,8 @@ public sealed class Texture2D : Texture, IDisposable
 
     int Id;
     bool GenerateMips;
+
+    public IntPtr Data { get; private set; }
 
     public int FramebufferId { get; private set; }
     public int DepthRenderbufferId { get; private set; }
@@ -76,6 +82,7 @@ public sealed class Texture2D : Texture, IDisposable
     {
         Width = width;
         Height = height;
+        Data = data;
         InternalFormat = internalFormat;
         PixelFormat = pixelFormat;
         PixelType = pixelType;
@@ -92,7 +99,7 @@ public sealed class Texture2D : Texture, IDisposable
         if (setParameter != null) setParameter(this);
         if (setParameters != null && setParameters.Length > 0)
         {
-            foreach (var param in setParameters)
+            foreach (Action<Texture> param in setParameters)
                 param(this);
         }
 
@@ -123,7 +130,7 @@ public sealed class Texture2D : Texture, IDisposable
                     DepthTextureId = GL.GenTexture();
                     GL.BindTexture(TextureTarget.Texture2D, DepthTextureId);
 
-                    var depthInternal = depthTexInternal;
+                    PixelInternalFormat depthInternal = depthTexInternal;
                     PixelType depthType = depthInternal == PixelInternalFormat.DepthComponent32f
                         ? PixelType.Float
                         : PixelType.UnsignedInt;
@@ -155,7 +162,7 @@ public sealed class Texture2D : Texture, IDisposable
 
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
 
-            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
                 throw new InvalidOperationException($"Framebuffer incomplete: {status}");
 
@@ -251,6 +258,8 @@ public sealed class TextureBindless : Texture, IDisposable
     public TextureType Type => TextureType.TextureBindless;
     public TextureTarget Target => TextureTarget.Texture2D;
 
+    public IntPtr Data { get; private set; }
+
     public PixelInternalFormat InternalFormat { get; private set; }
     public PixelFormat PixelFormat { get; private set; }
     public PixelType PixelType { get; private set; }
@@ -283,6 +292,7 @@ public sealed class TextureBindless : Texture, IDisposable
 
         Width = width;
         Height = height;
+        Data = data;
         InternalFormat = internalFormat;
         PixelFormat = pixelFormat;
         PixelType = pixelType;
@@ -300,7 +310,7 @@ public sealed class TextureBindless : Texture, IDisposable
             setParameter(this);
         if (setParameters != null && setParameters.Length > 0)
         {
-            foreach (var param in setParameters)
+            foreach (Action<Texture> param in setParameters)
                 param(this);
         }
         Generating = false;
@@ -421,7 +431,7 @@ public static class TextureParamDefaults
 
 public static class TextureFactory
 {
-    public static List<Texture> Textures = new();
+    public static List<Texture> Textures = [];
     static TextureFactory()
     {
         StbImage.stbi_set_flip_vertically_on_load(1);
@@ -433,7 +443,7 @@ public static class TextureFactory
         if (!File.Exists(path))
             throw new FileNotFoundException("Image file not found.", path);
 
-        using var fs = File.OpenRead(path);
+        using FileStream fs = File.OpenRead(path);
         Texture result = BuildFromStream(fs, options);
         fs.Dispose();
         return result;
@@ -441,20 +451,19 @@ public static class TextureFactory
 
     public static Texture BuildFromStream(Stream stream, TextureBuildOptions options)
     {
-        var reader = new ImageResult();
-        ImageResult img;
-        img = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha); 
+
+        ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
         bool sourceHasAlpha =
-        img.SourceComp == ColorComponents.RedGreenBlueAlpha ||
-        img.SourceComp == ColorComponents.GreyAlpha;
+        image.SourceComp == ColorComponents.RedGreenBlueAlpha ||
+        image.SourceComp == ColorComponents.GreyAlpha;
 
         if (!sourceHasAlpha)
-            for (int i = 3; i < img.Data.Length; i += 4)
-                img.Data[i] = 255;
+            for (int i = 3; i < image.Data.Length; i += 4)
+                image.Data[i] = 255;
 
-        int width = img.Width;
-        int height = img.Height;
-        byte[] pixels = img.Data;
+        int width = image.Width;
+        int height = image.Height;
+        byte[] pixels = image.Data;
 
         IntPtr unmanagedPtr = Marshal.AllocHGlobal(pixels.Length);
         try
@@ -469,7 +478,7 @@ public static class TextureFactory
                         unmanagedPtr,
                         PixelInternalFormat.Rgba8,
                         PixelFormat.Rgba,
-                        PixelType.UnsignedByte, 
+                        PixelType.UnsignedByte,
                         options.GenerateMips,
                         options.SetParameter,
                         options.SetParameters,
@@ -505,7 +514,7 @@ public static class TextureFactory
 
     public static void DisposeAll()
     {
-        foreach (var texture in Textures)
+        foreach (Texture texture in Textures)
             texture.Dispose();
         Textures.Clear();
     }

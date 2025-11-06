@@ -3,6 +3,7 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL4;
 using System.Runtime.InteropServices;
 using PrimitiveType = OpenTK.Graphics.OpenGL4.PrimitiveType;
+using Vector3 = System.Numerics.Vector3;
 namespace Patchwork.Render.Objects;
 
 public static class MeshAtlas
@@ -99,7 +100,7 @@ public static class MeshAtlas
 
     public static bool TryGetSlice(string name, out MeshSlice slice)
     {
-        if (NameMap.TryGetValue(name, out var idx))
+        if (NameMap.TryGetValue(name, out int idx))
         {
             slice = Slices[idx];
             return true;
@@ -109,12 +110,12 @@ public static class MeshAtlas
     }
 
     public static MeshSlice GetSlice(string name)
-        => NameMap.TryGetValue(name, out var idx) ? Slices[idx] :
+        => NameMap.TryGetValue(name, out int idx) ? Slices[idx] :
            throw new KeyNotFoundException($"Mesh slice '{name}' not found in global atlas.");
 
     public static void Draw(string name)
     {
-        var s = GetSlice(name);
+        MeshSlice s = GetSlice(name);
         GL.DrawElementsBaseVertex(
             PrimitiveType.Triangles,
             s.IndexCount,
@@ -157,7 +158,7 @@ public static class MeshAtlas
     {
         EnsureInit();
 
-        var added = new List<MeshSlice>();
+        List<MeshSlice> added = new List<MeshSlice>();
         int baseVertex = Vertices.Count / 16;
         int firstIndex = Indices.Count;
 
@@ -169,23 +170,23 @@ public static class MeshAtlas
             PostProcessSteps.GenerateNormals |
             PostProcessSteps.CalculateTangentSpace;
 
-        foreach (var path in paths)
+        foreach (string path in paths)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException($"Model file not found: {path}");
 
-            var scene = Assimp.ImportFile(path, pp);
+            Scene scene = Assimp.ImportFile(path, pp);
             if (scene == null || scene.MeshCount == 0)
                 continue;
 
             for (int mi = 0; mi < scene.MeshCount; ++mi)
             {
-                var m = scene.Meshes[mi];
+                Mesh m = scene.Meshes[mi];
                 int vcount = m.VertexCount;
 
                 for (int v = 0; v < vcount; ++v)
                 {
-                    var p = m.Vertices[v];
+                    Vector3D p = m.Vertices[v];
                     Vertices.Add(p.X); Vertices.Add(p.Y); Vertices.Add(p.Z);
 
                     Vector3 n = m.HasNormals
@@ -197,13 +198,13 @@ public static class MeshAtlas
                     Vector3 t = Vector3.UnitX; float w = 1f;
                     if (m.HasTangentBasis && m.HasNormals)
                     {
-                        var tt = m.Tangents[v];
-                        var bb = m.BiTangents[v];
-                        var nn = m.Normals[v];
+                        Vector3D tt = m.Tangents[v];
+                        Vector3D bb = m.BiTangents[v];
+                        Vector3D nn = m.Normals[v];
 
                         t = new Vector3(tt.X, tt.Y, tt.Z);
-                        var b = new Vector3(bb.X, bb.Y, bb.Z);
-                        var nrm = new Vector3(nn.X, nn.Y, nn.Z);
+                        Vector3 b = new Vector3(bb.X, bb.Y, bb.Z);
+                        Vector3 nrm = new Vector3(nn.X, nn.Y, nn.Z);
                         w = Vector3.Dot(Vector3.Cross(nrm, t), b) < 0 ? -1f : 1f;
                     }
                     t = Vector3.Normalize(t);
@@ -212,7 +213,7 @@ public static class MeshAtlas
                     float u = 0f, vtex = 0f;
                     if (m.TextureCoordinateChannelCount > 0 && m.HasTextureCoords(0))
                     {
-                        var uv = m.TextureCoordinateChannels[0][v];
+                        Vector3D uv = m.TextureCoordinateChannels[0][v];
                         u = uv.X;
                         vtex = flipUVs ? (1f - uv.Y) : uv.Y;
                     }
@@ -221,7 +222,7 @@ public static class MeshAtlas
                     float r = 1f, g = 1f, bcol = 1f, a = 1f;
                     if (m.VertexColorChannelCount > 0 && m.HasVertexColors(0))
                     {
-                        var c = m.VertexColorChannels[0][v];
+                        Color4D c = m.VertexColorChannels[0][v];
                         r = c.R; g = c.G; bcol = c.B; a = c.A;
                     }
                     Vertices.Add(r); Vertices.Add(g); Vertices.Add(bcol); Vertices.Add(a);
@@ -230,7 +231,7 @@ public static class MeshAtlas
                 int firstIdxThisMesh = Indices.Count;
                 for (int f = 0; f < m.FaceCount; ++f)
                 {
-                    var face = m.Faces[f];
+                    Face face = m.Faces[f];
                     if (face.IndexCount != 3) continue;
                     Indices.Add((uint)face.Indices[0]);
                     Indices.Add((uint)face.Indices[1]);
@@ -238,7 +239,7 @@ public static class MeshAtlas
                 }
 
                 int indexCount = Indices.Count - firstIdxThisMesh;
-                var slice = new MeshSlice
+                MeshSlice slice = new MeshSlice
                 {
                     Name = (Path.GetDirectoryName(path) ?? "") + "/" + Path.GetFileName(path) + (mi == 0 ? "" : $"#{mi + 1}"),
                     BaseVertex = baseVertex,
@@ -267,7 +268,7 @@ public static class MeshAtlas
 
         int vertexCount = vertexData.Length / 16;
 
-        foreach (var s in slices)
+        foreach (MeshSlice s in slices)
         {
             if (s.BaseVertex < 0 || s.BaseVertex > vertexCount)
                 throw new ArgumentOutOfRangeException(nameof(s.BaseVertex), $"Slice '{s.Name}' BaseVertex {s.BaseVertex} out of range [0,{vertexCount}].");
@@ -286,7 +287,7 @@ public static class MeshAtlas
     {
         EnsureInit();
 
-        var localSliceArray = localSlices.ToArray();
+        MeshSlice[] localSliceArray = localSlices.ToArray();
         if (validate) Validate(vertexData, indexData, localSliceArray);
 
         int baseVertexOffset = Vertices.Count / 16;
@@ -295,10 +296,10 @@ public static class MeshAtlas
         Vertices.AddRange(vertexData.ToArray());
         Indices.AddRange(indexData.ToArray());
 
-        var added = new List<MeshSlice>(localSliceArray.Length);
-        foreach (var sLocal in localSliceArray)
+        List<MeshSlice> added = new List<MeshSlice>(localSliceArray.Length);
+        foreach (MeshSlice sLocal in localSliceArray)
         {
-            var sGlobal = new MeshSlice
+            MeshSlice sGlobal = new MeshSlice
             {
                 Name = sLocal.Name,
                 BaseVertex = sLocal.BaseVertex + baseVertexOffset,
@@ -320,7 +321,7 @@ public static class MeshAtlas
 
     private static void NameMapAddOrThrow(string name, int idx)
     {
-        if (NameMap.TryGetValue(name, out var existing) && existing != idx)
+        if (NameMap.TryGetValue(name, out int existing) && existing != idx)
             throw new Exception($"Mesh name '{name}' is already used in the global atlas.");
         NameMap[name] = idx;
     }

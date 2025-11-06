@@ -1,9 +1,5 @@
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Mathematics;
-using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using static Patchwork.Engine;
 
 namespace Patchwork.Render.Objects;
 

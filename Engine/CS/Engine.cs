@@ -1,33 +1,22 @@
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.Common;
-using OpenTK.Mathematics;
-using Patchwork.PECS;
-using Patchwork.Render;
-using System.Runtime.InteropServices;
-using Patchwork.Render.Objects;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Graphics.OpenGL4;
 using Monitor = OpenTK.Windowing.GraphicsLibraryFramework.Monitor;
-using Patchwork.Audio;
+using System.Dynamic;
 namespace Patchwork;
 
-[StructLayout(LayoutKind.Sequential)]
-struct BS
-{
-    public Vector4 Color;
-}
 public class Engine : GameWindow
 {
     static Engine InstanceInternal = null!;
-    public static Engine Instance => InstanceInternal;
-    public static Engine I => InstanceInternal;
-    public static ECS ECS { get; } = ECS.Instance;
-    public static Entity Camera = new("Camera", [], "Camera");
-    public static float DeltaTime { get; private set; }
-    public static float Time => (float)TimeDouble;
-    public static Box Viewport { get; private set; }
-    IRenderSystem Renderer = null!;
-    static double TimeDouble = 0;
+    public ECS ECS { get; private set; } = null!;
+    public Entity Camera = null!;
+    public Matrix4 CameraProjection = Matrix4.Identity;
+    public float DeltaTime { get; private set; }
+    public float Time => (float)TimeDouble;
+    public Box Viewport { get; private set; }
+    public IRenderSystem Renderer = null!;
+    double TimeDouble = 0;
     bool OnTop = false;
     public event Action? PostRender;
     public Engine(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, bool onTop = false) : base(gameWindowSettings, nativeWindowSettings)
@@ -41,6 +30,9 @@ public class Engine : GameWindow
             throw new Exception("Engine already initialized.");
         InstanceInternal = this;
         base.OnLoad();
+        Init(this);
+        ECS = new();
+        Camera = new("Camera", [], "Camera");
         IncludedFiles.Init();
         UIRenderer.Init();
         AudioPlayer.Init();
@@ -48,13 +40,23 @@ public class Engine : GameWindow
         Renderer = Entrypoint.Renderer();
         OnResize(new ResizeEventArgs());
     }
-
+    private ButtonState GetButtonState(MouseButton button)
+    {
+        if (MouseState.IsButtonPressed(button))
+            return ButtonState.Pressed;
+        if (MouseState.IsButtonReleased(button))
+            return ButtonState.Released;
+        if (MouseState.IsButtonDown(button))
+            return ButtonState.Down;
+        return ButtonState.Up;
+    }
     protected override unsafe void OnUpdateFrame(FrameEventArgs args)
     {
         base.OnUpdateFrame(args);
         DeltaTime = (float)args.Time;
         TimeDouble += DeltaTime;
         ECS.Update();
+        InputState.Update(MouseState.Position, MouseState.PreviousPosition, MouseState.Delta, GetButtonState(MouseButton.Left), GetButtonState(MouseButton.Right), GetButtonState(MouseButton.Middle), GetButtonState(MouseButton.Button4), GetButtonState(MouseButton.Button5), MouseState.Scroll, MouseState.PreviousScroll, MouseState.ScrollDelta, KeyboardState);
         if (OnTop)
         {
             try
@@ -103,10 +105,62 @@ public class Engine : GameWindow
         ECS.Dispose();
         TextureFactory.DisposeAll();
         Entity.DisposeAll();
-        foreach (var system in ECS.Systems)
+        foreach (ISystem system in ECS.Systems)
             system.Dispose();
         ECS.Systems.Clear();
         UIRenderer.Dispose();
         AudioPlayer.DisposeAll();
+    }
+}
+
+public static class Helper
+{
+    static Engine Instance = null!;
+    public static void Init(Engine engine)
+    {
+        if (Instance != null)
+            throw new Exception("Engine already initialized.");
+        Instance = engine;
+    }
+    public static Entity Camera => Instance.Camera;
+    public static float Time => Instance.Time;
+    public static float DeltaTime => Instance.DeltaTime;
+    public static Box Viewport => Instance.Viewport;
+    public static string Title
+    {
+        get => Instance.Title;
+        set => Instance.Title = value;
+    }
+    public static Matrix4 CameraProjection
+    {
+        get => Instance.CameraProjection;
+        set => Instance.CameraProjection = value;
+    }
+    public static void Close() => Instance.Close();
+    public static string Clipboard
+    {
+        get => Instance.ClipboardString;
+        set => Instance.ClipboardString = value;
+    }
+    static unsafe byte[] PtrToBytes(IntPtr ptr, int length)
+    {
+        byte[] data = new byte[length];
+        fixed (byte* dest = data)
+        {
+            System.Buffer.MemoryCopy((void*)ptr, dest, length, length);
+        }
+        return data;
+    }
+    public static Texture Icon
+    {
+        set
+        {
+            Instance.Icon = new([new(value.Width, value.Height, PtrToBytes(value.Data, value.Width * value.Height * 4))]);
+        }
+    }
+    public static IRenderSystem Renderer
+    {
+        get => Instance.Renderer;
+        set => Instance.Renderer = value;
     }
 }

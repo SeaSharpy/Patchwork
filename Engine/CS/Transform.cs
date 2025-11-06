@@ -1,4 +1,3 @@
-using OpenTK.Mathematics;
 public struct Transform
 {
     public Vector3 Position { get; set; }
@@ -21,9 +20,9 @@ public struct Transform
 
     public Matrix4 Matrix()
     {
-        var t = Matrix4.CreateTranslation(Position);
-        var r = Matrix4.CreateFromQuaternion(Rotation);
-        var s = Matrix4.CreateScale(Scale);
+        Matrix4 t = Matrix4.CreateTranslation(Position);
+        Matrix4 r = Matrix4.CreateFromQuaternion(Rotation);
+        Matrix4 s = Matrix4.CreateScale(Scale);
         return s * r * t;
     }
 }
