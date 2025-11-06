@@ -15,3 +15,12 @@ public class BuiltinRenderer2D : IRenderSystem
 
     }
 }
+public class Sprite : IDataComponent
+{
+    public Texture Texture;
+
+    public Sprite(Texture texture)
+    {
+        Texture = texture;
+    }
+}
