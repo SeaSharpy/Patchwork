@@ -8,7 +8,7 @@ namespace Patchwork;
 
 public class Engine : GameWindow
 {
-    static Engine InstanceInternal = null!;
+    private static Engine InstanceInternal = null!;
     public ECS ECS { get; private set; } = null!;
     public Entity Camera = null!;
     public Matrix4 CameraProjection = Matrix4.Identity;
@@ -16,8 +16,8 @@ public class Engine : GameWindow
     public float Time => (float)TimeDouble;
     public Box Viewport { get; private set; }
     public IRenderSystem Renderer = null!;
-    double TimeDouble = 0;
-    bool OnTop = false;
+    private double TimeDouble = 0;
+    private bool OnTop = false;
     public event Action? PostRender;
     public Engine(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, bool onTop = false) : base(gameWindowSettings, nativeWindowSettings)
     {
@@ -72,9 +72,7 @@ public class Engine : GameWindow
             catch { }
         }
         if ((KeyboardState.IsKeyDown(Keys.LeftAlt) || KeyboardState.IsKeyDown(Keys.RightAlt)) && (KeyboardState.IsKeyDown(Keys.LeftShift) || KeyboardState.IsKeyDown(Keys.RightShift)) && (KeyboardState.IsKeyDown(Keys.LeftControl) || KeyboardState.IsKeyDown(Keys.RightControl)))
-        {
             Close();
-        }
     }
     protected override void OnResize(ResizeEventArgs args)
     {
@@ -115,7 +113,7 @@ public class Engine : GameWindow
 
 public static class Helper
 {
-    static Engine Instance = null!;
+    private static Engine Instance = null!;
     public static void Init(Engine engine)
     {
         if (Instance != null)
@@ -142,7 +140,7 @@ public static class Helper
         get => Instance.ClipboardString;
         set => Instance.ClipboardString = value;
     }
-    static unsafe byte[] PtrToBytes(IntPtr ptr, int length)
+    private static unsafe byte[] PtrToBytes(IntPtr ptr, int length)
     {
         byte[] data = new byte[length];
         fixed (byte* dest = data)

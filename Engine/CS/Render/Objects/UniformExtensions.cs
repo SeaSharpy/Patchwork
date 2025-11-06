@@ -10,8 +10,8 @@ namespace Patchwork.Render.Objects
 
         private static int GetLocation(this Shader s, string name)
         {
-            if (s == null) throw new ArgumentNullException(nameof(s));
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException(nameof(name));
+            if (s == null) throw new ArgumentNullException("s", "Shader instance must not be null.");
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Uniform name must not be empty.", "name");
             if (s.Id == 0) throw new InvalidOperationException("Program not linked or disposed.");
             if (!Cache.TryGetValue(s.Id, out Dictionary<string, int>? dict))
             {

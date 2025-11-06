@@ -4,9 +4,9 @@ using System.Text;
 public static class IncludedFiles
 {
     public static Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
-    static bool Initialized;
-    static string[]? AllNames;
-    static Assembly? AssemblyRef;
+    private static bool Initialized;
+    private static string[]? AllNames;
+    private static Assembly? AssemblyRef;
 
     public static void Init()
     {
@@ -42,7 +42,7 @@ public static class IncludedFiles
     }
 
 
-    static void AddWithAliases(string? primaryKey, string fullResourceName, string text)
+    private static void AddWithAliases(string? primaryKey, string fullResourceName, string text)
     {
         if (!string.IsNullOrWhiteSpace(primaryKey))
             TryAdd(primaryKey!, text);
@@ -55,13 +55,13 @@ public static class IncludedFiles
             TryAdd(fileNoExt, text);
     }
 
-    static void TryAdd(string key, string value)
+    private static void TryAdd(string key, string value)
     {
         if (!Files.ContainsKey(key))
             Files[key] = value;
     }
 
-    static string ReadResourceText(string fullName)
+    private static string ReadResourceText(string fullName)
     {
         using Stream stream = AssemblyRef!.GetManifestResourceStream(fullName)
             ?? throw new Exception($"Could not find embedded resource '{fullName}'.");
@@ -69,7 +69,7 @@ public static class IncludedFiles
         return reader.ReadToEnd();
     }
 
-    static Dictionary<string, string> ReadAliasMap(string dataTxtSimpleName)
+    private static Dictionary<string, string> ReadAliasMap(string dataTxtSimpleName)
     {
         Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -92,7 +92,7 @@ public static class IncludedFiles
         return map;
     }
 
-    static string ResolveResourceName(string hint)
+    private static string ResolveResourceName(string hint)
     {
         string? full = ResolveResourceNameOrNull(hint);
         if (full != null) return full;
@@ -101,7 +101,7 @@ public static class IncludedFiles
                             $"Known names: {string.Join(", ", AllNames ?? Array.Empty<string>())}");
     }
 
-    static string? ResolveResourceNameOrNull(string hint)
+    private static string? ResolveResourceNameOrNull(string hint)
     {
         if (AssemblyRef == null) return null;
         AllNames ??= AssemblyRef.GetManifestResourceNames();
@@ -128,7 +128,7 @@ public static class IncludedFiles
         return null;
     }
 
-    static string GetFileNameWithExtension(string full)
+    private static string GetFileNameWithExtension(string full)
     {
         string[] parts = full.Split('.');
         return parts.Length >= 2 ? $"{parts[^2]}.{parts[^1]}" : full;

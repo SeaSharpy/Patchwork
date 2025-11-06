@@ -23,9 +23,9 @@ public sealed class AudioPlayer : IDisposable
         set { PitchInternal = value; AL.Source(Source, ALSourcef.Pitch, PitchInternal); }
     }
 
-    bool LoopingInternal = false;
-    float GainInternal = 1f;
-    float PitchInternal = 1f;
+    private bool LoopingInternal = false;
+    private float GainInternal = 1f;
+    private float PitchInternal = 1f;
     private static ALDevice Device;
     private static ALContext Context;
     public static void Init()
@@ -54,7 +54,7 @@ public sealed class AudioPlayer : IDisposable
     public AudioPlayer(AudioFile file, bool startPlaying = false)
     {
         if (file == null)
-            throw new ArgumentNullException(nameof(file));
+            throw new ArgumentNullException("file", "AudioPlayer requires a valid AudioFile instance.");
         Buffer = file.Buffer;
         AL.Source(Source, ALSourcei.Buffer, Buffer);
 
@@ -64,7 +64,7 @@ public sealed class AudioPlayer : IDisposable
     public AudioPlayer(AudioFile file, float pitchMin, float pitchMax, bool startPlaying = false)
     {
         if (file == null)
-            throw new ArgumentNullException(nameof(file));
+            throw new ArgumentNullException("file", "AudioPlayer requires a valid AudioFile instance.");
         Buffer = file.Buffer;
         AL.Source(Source, ALSourcei.Buffer, Buffer);
         Pitch = Random.Shared.NextSingle() * (pitchMax - pitchMin) + pitchMin;

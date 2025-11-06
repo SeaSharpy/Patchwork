@@ -6,8 +6,8 @@ namespace Patchwork.Render.Objects;
 
 public sealed class Shader : IDisposable
 {
-    int Vertex = 0;
-    int Fragment = 0;
+    private int Vertex = 0;
+    private int Fragment = 0;
     public int Id { get; private set; }
     public string Name { get; private set; }
 
@@ -102,9 +102,7 @@ public sealed class Shader : IDisposable
         GL.GetShader(shader, ShaderParameter.ShaderSourceLength, out int length);
         string src = string.Empty;
         if (length > 0)
-        {
             GL.GetShaderSource(shader, length, out _, out src);
-        }
 
         string numberedSource = AddLineNumbers(src);
 

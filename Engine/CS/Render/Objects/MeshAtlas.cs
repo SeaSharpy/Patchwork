@@ -271,10 +271,10 @@ public static class MeshAtlas
         foreach (MeshSlice s in slices)
         {
             if (s.BaseVertex < 0 || s.BaseVertex > vertexCount)
-                throw new ArgumentOutOfRangeException(nameof(s.BaseVertex), $"Slice '{s.Name}' BaseVertex {s.BaseVertex} out of range [0,{vertexCount}].");
+                throw new ArgumentOutOfRangeException("BaseVertex", s.BaseVertex, $"Slice '{s.Name}' base vertex {s.BaseVertex} must be within [0, {vertexCount}].");
 
             if (s.FirstIndex < 0 || s.IndexCount < 0 || (s.FirstIndex + s.IndexCount) > indexData.Length)
-                throw new ArgumentOutOfRangeException(nameof(s.FirstIndex), $"Slice '{s.Name}' index window [{s.FirstIndex},{s.FirstIndex + s.IndexCount}) out of range [0,{indexData.Length}).");
+                throw new ArgumentOutOfRangeException("FirstIndex", s.FirstIndex, $"Slice '{s.Name}' index window [{s.FirstIndex}, {s.FirstIndex + s.IndexCount}) must be within [0, {indexData.Length}).");
         }
     }
 

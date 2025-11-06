@@ -39,8 +39,8 @@ public class BuiltinRenderer : IRenderSystem
         }
     }
 
-    readonly nint ModelMatrixSize = Marshal.SizeOf<GpuModelMatrix>();
-    readonly nint IndirectCmdSize = Marshal.SizeOf<DrawElementsIndirectCommand>();
+    private readonly nint ModelMatrixSize = Marshal.SizeOf<GpuModelMatrix>();
+    private readonly nint IndirectCmdSize = Marshal.SizeOf<DrawElementsIndirectCommand>();
 
     private int MatricesSsbo = 0;
     private readonly Dictionary<Entity, Matrix4> PreviousModelMatrices = new();

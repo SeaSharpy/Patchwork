@@ -4,10 +4,10 @@ namespace Patchwork.Render.Objects;
 
 public static class Quad
 {
-    static int VAO, VBO;
+    private static int VAO, VBO;
     public static int VertexCount => 6;
     public static readonly float[] Verts = { 0f, 0f, 1f, 0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f, 1f };
-    static bool Ready;
+    private static bool Ready;
 
     public static void EnsureReady()
     {

@@ -2,7 +2,7 @@ namespace Patchwork.PECS;
 
 public class ECS : IDisposable
 {
-    static ECS Instance = null!;
+    private static ECS Instance = null!;
 
     public ECS()
     {
@@ -16,7 +16,7 @@ public class ECS : IDisposable
     public readonly List<IDataComponent> Components = new();
     public readonly List<ISystem> Systems = new();
     public readonly Dictionary<ISystem, bool> SystemInitialized = new();
-    IRenderSystem? RenderSystem;
+    private IRenderSystem? RenderSystem;
 
     public void RegisterEntity(Entity entity)
     {
@@ -25,10 +25,7 @@ public class ECS : IDisposable
         Entities.Add(entity);
     }
 
-    public void DestroyEntity(Entity entity)
-    {
-        Entities.Remove(entity);
-    }
+    public void DestroyEntity(Entity entity) => Entities.Remove(entity);
 
     private void IRegisterSystem(ISystem system)
     {
@@ -58,20 +55,11 @@ public class ECS : IDisposable
         foreach (Entity entity in Entities.ToArray())
             entity.Update();
     }
-    public void IAddComponent(IDataComponent component)
-    {
-        Components.Add(component);
-    }
+    public void IAddComponent(IDataComponent component) => Components.Add(component);
     public static void AddComponent(IDataComponent component) => Instance.IAddComponent(component);
-    public void IRemoveComponent(IDataComponent component)
-    {
-        Components.Remove(component);
-    }
+    public void IRemoveComponent(IDataComponent component) => Components.Remove(component);
     public static void RemoveComponent(IDataComponent component) => Instance.IRemoveComponent(component);
-    public IEnumerable<T> IGetComponents<T>() where T : IDataComponent
-    {
-        return Components.OfType<T>();
-    }
+    public IEnumerable<T> IGetComponents<T>() where T : IDataComponent => Components.OfType<T>();
     public static IEnumerable<T> GetComponents<T>() where T : IDataComponent => Instance.IGetComponents<T>();
 
     public void Render()
@@ -128,15 +116,10 @@ public class Entity : IDisposable
     {
         Entity[] result = new Entity[count];
         for (int i = 0; i < count; i++)
-        {
             result[i] = new Entity(nameFunc(i));
-        }
         return result;
     }
-    public static Entity Create(string name)
-    {
-        return new Entity(name);
-    }
+    public static Entity Create(string name) => new Entity(name);
 
     public void AddComponent<T>(T component) where T : IDataComponent
     {

@@ -14,11 +14,11 @@ public sealed class AudioFile : IDisposable
     public int Buffer { get; private set; }
     public AudioFile(float[] samples, int sampleRate, bool stereo)
     {
-        if (samples == null) throw new ArgumentNullException(nameof(samples));
-        if (sampleRate <= 0) throw new ArgumentOutOfRangeException(nameof(sampleRate));
-        if (samples.Length == 0) throw new ArgumentException("Samples array is empty.", nameof(samples));
+        if (samples == null) throw new ArgumentNullException("samples", "AudioFile requires a valid samples buffer.");
+        if (sampleRate <= 0) throw new ArgumentOutOfRangeException("sampleRate", sampleRate, "Sample rate must be greater than zero.");
+        if (samples.Length == 0) throw new ArgumentException("Audio samples array must contain data.", "samples");
         if (samples.Length % (stereo ? 2 : 1) != 0)
-            throw new ArgumentException("Samples length must be a multiple of channel count.", nameof(samples));
+            throw new ArgumentException("Samples length must be a multiple of the channel count.", "samples");
 
         Samples = samples;
         SampleRate = sampleRate;
@@ -62,7 +62,7 @@ public sealed class AudioFile : IDisposable
 
     public static AudioFile FromWav(Stream stream)
     {
-        if (stream == null) throw new ArgumentNullException(nameof(stream));
+        if (stream == null) throw new ArgumentNullException("stream", "Source stream cannot be null when loading WAV audio.");
         using BinaryReader br = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
         string riff = new string(br.ReadChars(4));
@@ -102,13 +102,9 @@ public sealed class AudioFile : IDisposable
                     br.BaseStream.Position += (chunkSize - fmtRead);
             }
             else if (chunkId == "data")
-            {
                 dataChunk = br.ReadBytes(chunkSize);
-            }
             else
-            {
                 br.BaseStream.Position += chunkSize;
-            }
 
             if ((chunkSize & 1) == 1 && br.BaseStream.Position < br.BaseStream.Length)
                 br.BaseStream.Position += 1;

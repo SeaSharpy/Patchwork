@@ -51,8 +51,8 @@ public sealed class Texture2D : Texture, IDisposable
     public PixelFormat PixelFormat { get; private set; }
     public PixelType PixelType { get; private set; }
 
-    int Id;
-    bool GenerateMips;
+    private int Id;
+    private bool GenerateMips;
 
     public IntPtr Data { get; private set; }
 
@@ -98,10 +98,8 @@ public sealed class Texture2D : Texture, IDisposable
 
         if (setParameter != null) setParameter(this);
         if (setParameters != null && setParameters.Length > 0)
-        {
             foreach (Action<Texture> param in setParameters)
                 param(this);
-        }
 
         if (data != IntPtr.Zero)
         {
@@ -263,11 +261,11 @@ public sealed class TextureBindless : Texture, IDisposable
     public PixelInternalFormat InternalFormat { get; private set; }
     public PixelFormat PixelFormat { get; private set; }
     public PixelType PixelType { get; private set; }
-    int Id;
-    bool GenerateMips;
+    private int Id;
+    private bool GenerateMips;
     bool Generating;
 
-    static bool CheckBindlessSupport()
+    private static bool CheckBindlessSupport()
     {
         string? ext = GL.GetString(StringName.Extensions);
         return ext != null && ext.Contains("GL_ARB_bindless_texture");
@@ -285,7 +283,7 @@ public sealed class TextureBindless : Texture, IDisposable
         Action<Texture>[]? setParameters = null)
     {
         if (data == IntPtr.Zero)
-            throw new ArgumentException("Data must be provided.");
+            throw new ArgumentException("Data must be provided.", "data");
 
         if (!CheckBindlessSupport())
             throw new NotSupportedException("ARB_bindless_texture not supported by the current context/GPU.");
@@ -439,7 +437,7 @@ public static class TextureFactory
     public static Texture BuildFromImage(string path, TextureBuildOptions options)
     {
         if (string.IsNullOrWhiteSpace(path))
-            throw new ArgumentException("Image path is null or empty.", nameof(path));
+            throw new ArgumentException("TextureFactory requires a non-empty image path.", "path");
         if (!File.Exists(path))
             throw new FileNotFoundException("Image file not found.", path);
 

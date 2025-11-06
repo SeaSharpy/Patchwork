@@ -234,20 +234,20 @@ public static class UIRenderer
 {
     public static Font Font = null!;
 
-    static int TextVAO;
-    static int TextVBO;
+    private static int TextVAO;
+    private static int TextVBO;
 
-    static int QuadVAO;
-    static int QuadVBO;
+    private static int QuadVAO;
+    private static int QuadVBO;
 
-    static int LineVAO;
-    static int LineVBO;
+    private static int LineVAO;
+    private static int LineVBO;
 
-    static int InstanceSSBO;
+    private static int InstanceSSBO;
 
-    static readonly List<QuadInstanceData> Instances = [];
-    static readonly List<int> SplitIndices = [];
-    static readonly List<List<INonBatched>> NonBatchedGroups = [];
+    private static readonly List<QuadInstanceData> Instances = [];
+    private static readonly List<int> SplitIndices = [];
+    private static readonly List<List<INonBatched>> NonBatchedGroups = [];
 
     public static Shader QuadImmediate = Shader.Text(
         @"
@@ -457,7 +457,7 @@ void main()
         "Text"
         );
 
-    static int TextStride = sizeof(float) * 4;
+    private static int TextStride = sizeof(float) * 4;
 
     public static Shader LineShader = Shader.Text(
         @"
@@ -556,7 +556,7 @@ void main()
         GL.DeleteBuffer(InstanceSSBO);
     }
 
-    static void AddSplitIfNeeded()
+    private static void AddSplitIfNeeded()
     {
         int count = Instances.Count;
         int groups = NonBatchedGroups.Count;
@@ -574,13 +574,13 @@ void main()
         }
     }
 
-    static void QueueNonBatched(INonBatched item)
+    private static void QueueNonBatched(INonBatched item)
     {
         AddSplitIfNeeded();
         NonBatchedGroups[NonBatchedGroups.Count - 1].Add(item);
     }
 
-    static void DrawBatchRange(int start, int count)
+    private static void DrawBatchRange(int start, int count)
     {
         if (count <= 0) return;
         QuadInstanceData[] slice = Instances.GetRange(start, count).ToArray();
@@ -622,7 +622,7 @@ void main()
         NonBatchedGroups.Clear();
     }
 
-    static void Enqueue(QuadInstanceData data)
+    private static void Enqueue(QuadInstanceData data)
     {
         Instances.Add(data);
     }
