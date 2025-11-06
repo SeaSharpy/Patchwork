@@ -148,7 +148,7 @@ public sealed class Shader : IDisposable
     {
         includes ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (depth > 64)
-            throw new Exception("Exceeded include recursion depth (possible cycle).");
+            throw new StackOverflowException("Exceeded include recursion depth (possible cycle).");
 
         source = StripComments(source);
 
@@ -166,7 +166,7 @@ public sealed class Shader : IDisposable
             {
                 string[] parts = line.Split(" ", StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 3)
-                    throw new Exception($"Malformed include at line {i + 1} of {path ?? "<memory>"}: '{raw}'");
+                    throw new InvalidDataException($"Malformed include at line {i + 1} of {path ?? "<memory>"}: '{raw}'");
 
                 string kind = parts[1];
                 string incPath = parts[2].Trim('"');
@@ -175,7 +175,7 @@ public sealed class Shader : IDisposable
                 {
                     "rel" => Path.GetFullPath(Path.Combine(baseDir, incPath)),
                     "abs" => Path.GetFullPath(incPath),
-                    _ => throw new Exception($"Invalid include kind '{kind}' at line {i + 1} of {path ?? "<memory>"}")
+                    _ => throw new InvalidDataException($"Invalid include kind '{kind}' at line {i + 1} of {path ?? "<memory>"}")
                 };
 
                 if (!File.Exists(resolved))
@@ -206,7 +206,7 @@ public sealed class Shader : IDisposable
     {
         includes ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (depth > 64)
-            throw new Exception("Exceeded include recursion depth in template (possible cycle).");
+            throw new StackOverflowException("Exceeded include recursion depth in template (possible cycle).");
 
         templateSource = StripComments(templateSource);
 
@@ -222,7 +222,7 @@ public sealed class Shader : IDisposable
             {
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 2)
-                    throw new Exception($"Malformed template include at line {i + 1} of {templateName}: '{raw}'");
+                    throw new InvalidDataException($"Malformed template include at line {i + 1} of {templateName}: '{raw}'");
 
                 string key = parts[1].Trim('"');
 
@@ -240,7 +240,7 @@ public sealed class Shader : IDisposable
             {
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 2)
-                    throw new Exception($"Malformed template disallow at line {i + 1} of {templateName}: '{raw}'");
+                    throw new InvalidDataException($"Malformed template disallow at line {i + 1} of {templateName}: '{raw}'");
 
                 string key = parts[1].Trim('"');
                 disallows.Add(key);
@@ -340,7 +340,7 @@ public sealed class Shader : IDisposable
                 {
                     string pat = $@"\A\s*{Regex.Escape(disallow)}\s*\z";
                     if (Regex.IsMatch(body, pat, RegexOptions.CultureInvariant))
-                        throw new Exception($"Disallowed item '{disallow}' found in shader template");
+                        throw new InvalidDataException($"Disallowed item '{disallow}' found in shader template");
                 }
             }
 

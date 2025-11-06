@@ -150,7 +150,7 @@ public class BuiltinRenderer : IRenderSystem
 
         FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         if (status != FramebufferErrorCode.FramebufferComplete)
-            throw new Exception($"GBuffer framebuffer incomplete: {status}");
+            throw new InvalidOperationException($"GBuffer framebuffer incomplete: {status}");
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
@@ -283,7 +283,7 @@ public class BuiltinRenderer : IRenderSystem
             MeshRenderer mr = meshes[i];
 
             if (!TryGetSlice(mr.Mesh, out MeshSlice slice))
-                throw new Exception($"Mesh '{mr.Mesh}' not found in global MeshAtlas.");
+                throw new KeyNotFoundException($"Mesh '{mr.Mesh}' not found in global MeshAtlas.");
 
             Shader shader = mr.Shader;
 
@@ -294,12 +294,12 @@ public class BuiltinRenderer : IRenderSystem
             if (materialTypeByShader.TryGetValue(shader, out Type? existing))
             {
                 if (existing != matType)
-                    throw new Exception($"Shader '{shader.Name}' bound with multiple material types: '{existing}' and '{matType}'. This renderer expects exactly one material struct type per shader.");
+                    throw new InvalidCastException($"Shader '{shader.Name}' bound with multiple material types: '{existing}' and '{matType}'. This renderer expects exactly one material struct type per shader.");
             }
             else
             {
                 if (!matType.IsValueType)
-                    throw new Exception($"Material type '{matType}' for shader '{shader.Name}' must be a value-type struct.");
+                    throw new InvalidDataException($"Material type '{matType}' for shader '{shader.Name}' must be a value-type struct.");
 
                 materialTypeByShader[shader] = matType;
                 materialArrayByShader[shader] = Array.CreateInstance(matType, instanceCount);
@@ -440,7 +440,7 @@ public class BuiltinRenderer : IRenderSystem
                 GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, MatricesSsbo);
 
                 if (!MaterialSsboByShader.TryGetValue(shader, out int matSsbo))
-                    throw new Exception($"Internal: no material buffer found for shader '{shader.Name}'.");
+                    throw new InvalidOperationException($"Internal: no material buffer found for shader '{shader.Name}'.");
                 GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, matSsbo);
 
                 Bind();

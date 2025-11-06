@@ -27,7 +27,7 @@ public class Engine : GameWindow
     {
         Console.WriteLine("Loading...");
         if (InstanceInternal != null)
-            throw new Exception("Engine already initialized.");
+            throw new InvalidOperationException("Engine already initialized.");
         InstanceInternal = this;
         base.OnLoad();
         Init(this);
@@ -119,7 +119,7 @@ public static class Helper
     public static void Init(Engine engine)
     {
         if (Instance != null)
-            throw new Exception("Engine already initialized.");
+            throw new InvalidOperationException("Engine helper already initialized.");
         Instance = engine;
     }
     public static Entity Camera => Instance.Camera;

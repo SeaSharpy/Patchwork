@@ -7,7 +7,7 @@ public class ECS : IDisposable
     public ECS()
     {
         if (Instance != null)
-            throw new Exception("ECS already initialized.");
+            throw new InvalidOperationException("ECS already initialized.");
         Instance = this;
         Entity.Instance = this;
     }
@@ -21,7 +21,7 @@ public class ECS : IDisposable
     public void RegisterEntity(Entity entity)
     {
         if (Entities.Contains(entity))
-            throw new Exception("Entity already exists");
+            throw new InvalidOperationException("Entity already exists");
         Entities.Add(entity);
     }
 
@@ -35,7 +35,7 @@ public class ECS : IDisposable
         if (system is IRenderSystem renderSystem)
         {
             if (RenderSystem != null)
-                throw new Exception("Only one render system is allowed");
+                throw new InvalidOperationException("Only one render system is allowed");
             RenderSystem = renderSystem;
         }
         Systems.Add(system);
@@ -147,7 +147,7 @@ public class Entity : IDisposable
             Components[type] = list;
         }
         if (component.Entity != null)
-            throw new Exception("Component already has an entity.");
+            throw new InvalidOperationException("Component already has an entity.");
         component.Entity = this;
         list.Add(component);
         ECS.AddComponent(component);

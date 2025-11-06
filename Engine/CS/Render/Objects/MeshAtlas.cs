@@ -322,7 +322,7 @@ public static class MeshAtlas
     private static void NameMapAddOrThrow(string name, int idx)
     {
         if (NameMap.TryGetValue(name, out int existing) && existing != idx)
-            throw new Exception($"Mesh name '{name}' is already used in the global atlas.");
+            throw new InvalidOperationException($"Mesh name '{name}' is already used in the global atlas.");
         NameMap[name] = idx;
     }
 }

@@ -97,7 +97,7 @@ public static class IncludedFiles
         string? full = ResolveResourceNameOrNull(hint);
         if (full != null) return full;
 
-        throw new Exception($"Embedded resource not found for hint '{hint}'. " +
+        throw new FileNotFoundException($"Embedded resource not found for hint '{hint}'. " +
                             $"Known names: {string.Join(", ", AllNames ?? Array.Empty<string>())}");
     }
 
