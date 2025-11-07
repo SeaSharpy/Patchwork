@@ -175,7 +175,7 @@ public class BuiltinRenderer : IRenderSystem
 
     public void Render()
     {
-        Box viewport = Helper.Viewport;
+        Box viewport = Viewport;
         if (viewport.Width <= 0 || viewport.Height <= 0)
             return;
 
@@ -254,15 +254,15 @@ public class BuiltinRenderer : IRenderSystem
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, MatricesSsbo);
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0);
 
-        Matrix4 cameraWorld = Helper.Camera.TransformMatrix;
+        Matrix4 cameraWorld = CameraEntity.TransformMatrix;
         Matrix4 viewMatrix = cameraWorld.Inverted();
-        Matrix4 projection = Helper.CameraProjection;
+        Matrix4 projection = CameraProjection.Projection;
         Matrix4 viewProjection = viewMatrix * projection;
-        if (!PreviousViewProjectionByCamera.TryGetValue(Helper.Camera, out Matrix4 previousViewProjection))
+        if (!PreviousViewProjectionByCamera.TryGetValue(CameraEntity, out Matrix4 previousViewProjection))
             previousViewProjection = viewProjection;
-        PreviousViewProjectionByCamera[Helper.Camera] = viewProjection;
+        PreviousViewProjectionByCamera[CameraEntity] = viewProjection;
 
-        Vector3 camPos = Helper.Camera.Transform.Position;
+        Vector3 camPos = CameraEntity.Transform.Position;
 
         Dictionary<Shader, Type> materialTypeByShader = new Dictionary<Shader, Type>();
         Dictionary<Shader, Array> materialArrayByShader = new Dictionary<Shader, Array>();
@@ -469,7 +469,7 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("PrevViewProjection", previousViewProjection);
             shader.Set("View", viewMatrix);
             shader.Set("Time", Time);
-            shader.Set("CameraPosition", Camera.Transform.Position);
+            shader.Set("CameraPosition", CameraEntity.Transform.Position);
             shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
         });
 
@@ -483,7 +483,7 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("PrevViewProjection", previousViewProjection);
             shader.Set("View", viewMatrix);
             shader.Set("Time", Time);
-            shader.Set("CameraPosition", Camera.Transform.Position);
+            shader.Set("CameraPosition", CameraEntity.Transform.Position);
             shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
         });
 
@@ -502,7 +502,7 @@ public class BuiltinRenderer : IRenderSystem
                 shader.Set("PrevViewProjection", previousViewProjection);
                 shader.Set("View", viewMatrix);
                 shader.Set("Time", Time);
-                shader.Set("CameraPosition", Camera.Transform.Position);
+                shader.Set("CameraPosition", CameraEntity.Transform.Position);
                 shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
             });
 

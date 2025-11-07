@@ -1,3 +1,9 @@
 shadertemplate_Default_vertex: default_vertex.glsl
 shadertemplate_Default_fragment: default_fragment.glsl
+shaderincluded_main2d_vertex: main2d_vertex.glsl
+shaderincluded_main2d_fragment: main2d_fragment.glsl
+shaderincluded_depth2d_vertex: depth2d_vertex.glsl
+shaderincluded_depth2d_fragment: depth2d_fragment.glsl
+shaderincluded_light2d_vertex: light2d_vertex.glsl
+shaderincluded_light2d_fragment: light2d_fragment.glsl
 lib: lib.glsl

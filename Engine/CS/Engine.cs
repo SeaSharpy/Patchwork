@@ -110,6 +110,48 @@ public class Engine : GameWindow
     }
 }
 
+public class Camera
+{
+    public bool Ortho;
+    public Box Box
+    {
+        get
+        {
+            Vector2 offset = CameraEntity.Transform.Position.Xy;
+            return new(offset - OrthoSize * 0.5f, offset + OrthoSize * 0.5f);
+        }
+    }
+    public float Size;
+    public bool Width;
+    public float OrthoWidth => Width ? Size : Size * Aspect;
+    public float OrthoHeight => Width ? Size * Aspect : Size;
+    public Vector2 OrthoSize => new(OrthoWidth, OrthoHeight);
+    public float Near = 0, Far = 1;
+    public float FOV;
+    public float Aspect => Viewport.Width / Viewport.Height;
+    public Matrix4 Projection => Ortho ? new Box(-OrthoSize * 0.5f, OrthoSize * 0.5f).ToOrthoMatrix(Near, Far) : Matrix4.CreatePerspectiveFieldOfView(FOV, Aspect, Near, Far);
+    private Camera() { }
+    public static Camera CreateOrthoGraphic(bool width, float size, float near = 0, float far = 1)
+    {
+        Camera camera = new();
+        camera.Ortho = true;
+        camera.Size = size;
+        camera.Width = width;
+        camera.Near = near;
+        camera.Far = far;
+        return camera;
+    }
+    public static Camera CreatePerspective(float fov, float near = 0.01f, float far = 100f)
+    {
+        Camera camera = new();
+        camera.Ortho = false;
+        camera.FOV = fov;
+        camera.Near = near;
+        camera.Far = far;
+        return camera;
+    }
+}
+
 public static class Helper
 {
     private static Engine Instance = null!;
@@ -119,7 +161,7 @@ public static class Helper
             throw new InvalidOperationException("Engine helper already initialized.");
         Instance = engine;
     }
-    public static Entity Camera => Instance.Camera;
+    public static Entity CameraEntity => Instance.Camera;
     public static float Time => Instance.Time;
     public static float DeltaTime => Instance.DeltaTime;
     public static Box Viewport => Instance.Viewport;
@@ -128,11 +170,7 @@ public static class Helper
         get => Instance.Title;
         set => Instance.Title = value;
     }
-    public static Matrix4 CameraProjection
-    {
-        get => Instance.CameraProjection;
-        set => Instance.CameraProjection = value;
-    }
+    public static Camera CameraProjection = Patchwork.Camera.CreateOrthoGraphic(false, 16);
     public static void Close() => Instance.Close();
     public static string Clipboard
     {

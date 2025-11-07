@@ -1,10 +1,8 @@
-r
-
-# Walt’s C# Style Guide
+Walt’s C# Style Guide
 
 ## Naming
 
-* Namespaces, Types (class, struct, record, interface, enum), Members, Methods, Properties, Fields, Events, Delegates: PascalCase
+* Namespaces, Types (class, struct, record, interface, enum), Members, Methods, Properties, Fields, Events, Delegates: PascalCase always, even if private
 * Parameters and local variables: camelCase
 * No underscores in any identifier.
 * Interfaces: PascalCase with I prefix not required but recommended

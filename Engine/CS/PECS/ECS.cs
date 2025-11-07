@@ -95,7 +95,8 @@ public class Entity : IDisposable
 {
     public static ECS Instance { private get; set; } = null!;
     public Transform Transform = new();
-    public Matrix4 TransformMatrix { get; private set; } = Matrix4.Identity;
+    public Matrix4 TransformMatrix => Transform.Matrix();
+    public Matrix4 TransformMatrixWith(Vector3 position, Vector3 scale) => Transform.WithOffset(position).WithScale(scale).Matrix();
     public string Name { get; private set; }
     public string? Marker { get; private set; }
     public string[] Layers { get; private set; }
@@ -181,7 +182,6 @@ public class Entity : IDisposable
             foreach (IDataComponent? component in list.ToArray())
                 if (component is IUpdateComponent c)
                     c.Update();
-        TransformMatrix = Transform.Matrix();
     }
 
     public static List<Entity> Entities = new();

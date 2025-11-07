@@ -31,6 +31,26 @@ public struct Box
     public Vector2 XY => new(X, Y);
     public Vector2 Size { get => new(Width, Height); set { Width = (int)value.X; Height = (int)value.Y; } }
     public bool Contains(Vector2 point) => point.X >= X && point.X <= X + Width && point.Y >= Y && point.Y <= Y + Height;
+    public bool Contains(Box box) =>
+        box.X >= X &&
+        box.Y >= Y &&
+        box.X + box.Width <= X + Width &&
+        box.Y + box.Height <= Y + Height;
+    public Matrix4 ToOrthoMatrix(float zNear = -1f, float zFar = 1f, bool yDown = false)
+    {
+        float left = X;
+        float right = X + Width;
+        float top = Y;
+        float bottom = Y + Height;
+
+        if (!yDown)
+        {
+            bottom = Y;
+            top = Y + Height;
+        }
+
+        return Matrix4.CreateOrthographicOffCenter(left, right, bottom, top, zNear, zFar);
+    }
 }
 public interface IRenderSystem : ISystem
 {

@@ -3,7 +3,8 @@ public struct Transform
     public Vector3 Position { get; set; }
     public Quaternion Rotation { get; set; }
     public Vector3 Scale { get; set; }
-
+    public Transform WithOffset(Vector3 position) => new(Position + position, Rotation, Scale);
+    public Transform WithScale(Vector3 scale) => new(Position, Rotation, Scale * scale);
     public Transform(Vector3 position, Quaternion rotation, Vector3 scale)
     {
         Position = position;

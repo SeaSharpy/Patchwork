@@ -22,6 +22,21 @@ public sealed class Shader : IDisposable
         shader.Build(vertex, fragment, null, null);
         return shader;
     }
+    public static Shader Embedded(string name)
+    {
+        Shader shader = new(name);
+        string vert = PreprocessTemplateIncludes("shaderincluded_" + name + "_vertex", StripComments(IncludedFiles.Files["shaderincluded_" + name + "_vertex"]), new());
+        string frag = PreprocessTemplateIncludes("shaderincluded_" + name + "_fragment", StripComments(IncludedFiles.Files["shaderincluded_" + name + "_fragment"]), new());
+        shader.Build(vert, frag, null, null, false);
+        return shader;
+    }
+
+    public static Shader Compute(string source, string name)
+    {
+        Shader shader = new(name);
+        shader.BuildCompute(source);
+        return shader;
+    }
 
     internal Shader(string name)
     {
@@ -63,11 +78,11 @@ public sealed class Shader : IDisposable
         return shader;
     }
 
-    private void Build(string vertexSource, string fragmentSource, string? vPath = null, string? fPath = null)
+    private void Build(string vertexSource, string fragmentSource, string? vPath = null, string? fPath = null, bool preprocess = true)
     {
         Header ??= IncludedFiles.Files["lib.glsl"];
-        vertexSource = Header + "#define VERTEX 1\n" + Preprocess(vertexSource, vPath);
-        fragmentSource = Header + "#define FRAGMENT 1\n" + Preprocess(fragmentSource, fPath);
+        vertexSource = Header + "#define VERTEX 1\n" + (preprocess ? Preprocess(vertexSource, vPath) : vertexSource);
+        fragmentSource = Header + "#define FRAGMENT 1\n" + (preprocess ? Preprocess(fragmentSource, fPath) : fragmentSource);
 
         Vertex = GL.CreateShader(ShaderType.VertexShader);
         Fragment = GL.CreateShader(ShaderType.FragmentShader);
@@ -90,6 +105,25 @@ public sealed class Shader : IDisposable
         GL.DetachShader(Id, Fragment);
         GL.DeleteShader(Vertex);
         GL.DeleteShader(Fragment);
+    }
+    private void BuildCompute(string source, bool preprocess = true)
+    {
+        Header ??= IncludedFiles.Files["lib.glsl"];
+        source = Header + "#define COMPUTE 1\n" + (preprocess ? Preprocess(source, null) : source);
+
+        Vertex = GL.CreateShader(ShaderType.ComputeShader);
+
+        GL.ShaderSource(Vertex, source);
+        GL.CompileShader(Vertex);
+        CheckShader(Vertex, "Compute", null);
+
+        Id = GL.CreateProgram();
+        GL.AttachShader(Id, Vertex);
+        GL.LinkProgram(Id);
+        CheckProgram(Id);
+
+        GL.DetachShader(Id, Vertex);
+        GL.DeleteShader(Vertex);
     }
 
     private static void CheckShader(int shader, string label, string? path)
