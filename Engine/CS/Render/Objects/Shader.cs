@@ -25,8 +25,8 @@ public sealed class Shader : IDisposable
     public static Shader Embedded(string name)
     {
         Shader shader = new(name);
-        string vert = PreprocessTemplateIncludes("shaderincluded_" + name + "_vertex", StripComments(IncludedFiles.Files["shaderincluded_" + name + "_vertex"]), new());
-        string frag = PreprocessTemplateIncludes("shaderincluded_" + name + "_fragment", StripComments(IncludedFiles.Files["shaderincluded_" + name + "_fragment"]), new());
+        string vert = PreprocessTemplateIncludes(StripComments(IncludedFiles.Files["shaderincluded_" + name + "_vertex"]), "shaderincluded_" + name + "_vertex", new());
+        string frag = PreprocessTemplateIncludes(StripComments(IncludedFiles.Files["shaderincluded_" + name + "_fragment"]), "shaderincluded_" + name + "_fragment", new());
         shader.Build(vert, frag, null, null, false);
         return shader;
     }

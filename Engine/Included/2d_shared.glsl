@@ -8,7 +8,7 @@ uniform sampler2D DepthTex;
 uniform sampler2D DepthBlurTex;
 struct SpriteData {
     mat4 Transform;
-    uint Texture;
+    uint64_t Texture;
     float Depth;
     float Extra;
 };

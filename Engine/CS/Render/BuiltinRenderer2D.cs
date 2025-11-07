@@ -176,6 +176,8 @@ public class BuiltinRenderer2D : IRenderSystem
         // Composite in main pass: provide light array (with mips), raw depth, and blurred depth
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
+        GL.ClearColor(0.5f, 0.55f, 0.6f, 1f);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 

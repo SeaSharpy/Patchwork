@@ -1,12 +1,13 @@
 #include 2d_shared.glsl
 
 layout(location   = 0) in vec2 UV;
-layout(location   = 1) in vec3 WorldPos;
+layout(location   = 1) flat in int Instance;
+layout(location   = 2) in vec3 WorldPos;
 layout(location   = 0) out vec4 Colour;
 
 void main()
 {
-    SpriteData s  = Sprites[gl_InstanceID];
+    SpriteData s  = Sprites[Instance];
     sampler2D tex = sampler2D(s.Texture);
     vec4 color    = texture(tex, UV);
     if (color.a < 0.5)
@@ -21,7 +22,7 @@ void main()
         vec3 pos = vec3(Lights[i].Position, 0.0);
         vec4 lightColor = Lights[i].Color;
         float lightRadius = Lights[i].Radius;
-        vec3 dist = length(WorldPos - pos);
+        float dist = length(WorldPos - pos);
         if (dist > lightRadius)
             continue;
         float falloff = 1.0 - smoothstep(0.0, lightRadius, dist);
