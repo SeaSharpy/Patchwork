@@ -140,8 +140,8 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.Blur.Use();
         Res.Blur.Set("ImageSize", new Vector2i(Viewport.Width, Viewport.Height));
         Res.Blur.Set("Direction", new Vector2i(1, 0));
-        Res.Blur.Set("Radius", 20);
-        Res.Blur.Set("Sigma", 20f / 3f);
+        Res.Blur.Set("Radius", 50);
+        Res.Blur.Set("Sigma", 50f / 3f);
 
         GL.BindImageTexture(0, Res.DepthTexture, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.R32f);
         GL.BindImageTexture(1, Res.DepthTextureA, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.R32f);
