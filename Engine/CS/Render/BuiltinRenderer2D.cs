@@ -17,34 +17,18 @@ public class BuiltinRenderer2D : IRenderSystem
     [StructLayout(LayoutKind.Sequential)]
     private struct LightData
     {
-        public Vector2 Position;
         public Vector4 Color;
+        public Vector2 Position;
         public float Radius;
-        private Vector3 Pad; // keep std430 alignment simple
+        private float Extra;
     }
 
-    private Matrix4 Parallax(Vector3 camera, Entity entity, float depth)
-    {
-        Vector3 center = entity.Transform.Position;
-        Vector3 halfExtents = entity.Transform.Scale * 0.5f;
-        Vector3 bottomLeft = center - halfExtents;
-        Vector3 topRight = center + halfExtents;
-        Vector3 cover = (camera - bottomLeft) / (topRight - bottomLeft);
-        cover *= 2;
-        cover -= Vector3.One;
-        Vector3 scale = Vector3.One * 1f / depth;
-        Vector3 realScale = scale * entity.Transform.Scale;
-        Vector3 offsetScale = entity.Transform.Scale - realScale;
-        return entity.TransformMatrixWith(cover * offsetScale, Vector3.One * 1f / depth);
-    }
 
     private SpriteData GetSpriteData(Sprite sprite)
     {
         return new SpriteData
         {
-            Transform = sprite.Parallax != 0
-                ? Parallax(CameraEntity.Transform.Position, sprite.Entity, sprite.Depth)
-                : sprite.Entity.TransformMatrix,
+            Transform = sprite.Entity.TransformMatrix,
             Texture = sprite.Texture.BindlessHandle,
             Depth = sprite.Depth
         };
@@ -156,8 +140,8 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.Blur.Use();
         Res.Blur.Set("ImageSize", new Vector2i(Viewport.Width, Viewport.Height));
         Res.Blur.Set("Direction", new Vector2i(1, 0));
-        Res.Blur.Set("Radius", 10);
-        Res.Blur.Set("Sigma", 10f / 3f);
+        Res.Blur.Set("Radius", 20);
+        Res.Blur.Set("Sigma", 20f / 3f);
 
         GL.BindImageTexture(0, Res.DepthTexture, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.R32f);
         GL.BindImageTexture(1, Res.DepthTextureA, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.R32f);
@@ -225,15 +209,13 @@ public class Sprite : IDataComponent
 {
     public TextureBindless Texture;
     public float Depth;
-    public float Parallax;
     public bool Transparent;
     public Box Box => new(Entity.Transform.Position.Xy - Entity.Transform.Scale.Xy * 0.5f, Entity.Transform.Position.Xy + Entity.Transform.Scale.Xy * 0.5f);
 
-    public Sprite(TextureBindless texture, float depth = 0, float parallax = 0)
+    public Sprite(TextureBindless texture, float depth = 0)
     {
         Texture = texture;
         Depth = depth;
-        Parallax = parallax;
     }
 }
 

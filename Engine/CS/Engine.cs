@@ -53,9 +53,9 @@ public class Engine : GameWindow
     {
         base.OnUpdateFrame(args);
         DeltaTime = (float)args.Time;
-        TimeDouble += DeltaTime;
-        ECS.Update();
+        TimeDouble += DeltaTime; 
         InputState.Update(MouseState.Position, MouseState.PreviousPosition, MouseState.Delta, GetButtonState(MouseButton.Left), GetButtonState(MouseButton.Right), GetButtonState(MouseButton.Middle), GetButtonState(MouseButton.Button4), GetButtonState(MouseButton.Button5), MouseState.Scroll, MouseState.PreviousScroll, MouseState.ScrollDelta, KeyboardState);
+        ECS.Update();
         if (OnTop)
         {
             try

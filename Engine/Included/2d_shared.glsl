@@ -14,9 +14,10 @@ struct SpriteData {
 };
 
 struct LightData {
-    vec2 Position;
     vec4 Color;
+    vec2 Position;
     float Radius;
+    float Extra;
 };
 
 Buffer(Sprites, SpriteData, 0);

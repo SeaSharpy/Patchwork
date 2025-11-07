@@ -15,18 +15,18 @@ void main()
     float depth   = texture(DepthTex,     gl_FragCoord.xy / vec2(ViewportSize)).r;
     float blur    = texture(DepthBlurTex, gl_FragCoord.xy / vec2(ViewportSize)).r;
     float AO = 1.0 - max(depth - blur, 0.0);
-    vec3 ambient = vec3(0.1, 0.1, 0.1);
-    Colour += vec4(ambient * AO, 1.0);
+    vec3 ambient = vec3(0.5);
+    Colour += vec4(ambient * AO * color.rgb, 1.0);
     for (int i = 0; i < LightCount; ++i)
     {
         vec3 pos = vec3(Lights[i].Position, 0.0);
-        vec4 lightColor = Lights[i].Color;
+        vec3 lightColor = Lights[i].Color.rgb;
         float lightRadius = Lights[i].Radius;
         float dist = length(WorldPos - pos);
         if (dist > lightRadius)
             continue;
         float falloff = 1.0 - smoothstep(0.0, lightRadius, dist);
-        Colour += falloff * lightColor * color;
+        Colour.rgb += falloff * lightColor * color.rgb;
     }
     Colour.a = color.a;
 }

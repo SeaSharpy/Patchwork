@@ -89,36 +89,34 @@ public class Resources2D : IDisposable
     public Shader Blur = Shader.Compute(@"
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-// Change rgba16f to match your actual texture format, e.g. r16f or r32f
-layout(binding = 0, rgba16f) readonly  uniform image2D Src;
-layout(binding = 1, rgba16f) writeonly uniform image2D Dst;
+// Match the actual texture format: R32F
+layout(binding = 0, r32f)  readonly  uniform image2D Src;
+layout(binding = 1, r32f)  writeonly uniform image2D Dst;
 
 uniform ivec2 ImageSize;   // (width, height)
-uniform ivec2 Direction;   // (1,0) for horizontal, (0,1) for vertical
+uniform ivec2 Direction;   // (1,0) for horizontal, (0,1) for vertical)
 uniform int   Radius;      // blur radius
 uniform float Sigma;       // Gaussian sigma; if <= 0, box weights are used
 
 void main()
 {
     ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(gid, ImageSize)))
-        return;
+    if (any(greaterThanEqual(gid, ImageSize))) return;
 
-    vec4 accum = vec4(0.0);
-    float wsum = 0.0;
+    float accum = 0.0;
+    float wsum  = 0.0;
 
-    // Simple Gaussian weight, normalized per pixel
-    // For best perf, precompute weights on CPU and upload to a UBO/SSBO.
     for (int o = -Radius; o <= Radius; ++o)
     {
         float w = (Sigma > 0.0) ? exp(-0.5 * float(o * o) / (Sigma * Sigma)) : 1.0;
         ivec2 p = clamp(gid + o * Direction, ivec2(0), ImageSize - 1);
-        vec4 c = imageLoad(Src, p);
+        float c = imageLoad(Src, p).r;  // single channel
         accum += c * w;
-        wsum += w;
+        wsum  += w;
     }
 
-    imageStore(Dst, gid, accum / max(wsum, 1e-8));
+    float outValue = accum / max(wsum, 1e-8);
+    imageStore(Dst, gid, vec4(outValue)); // only .r is used for r32f
 }
 ", "blur");
     public void ResizeIfNeeded(int width, int height)

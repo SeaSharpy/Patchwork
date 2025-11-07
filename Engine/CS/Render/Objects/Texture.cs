@@ -10,7 +10,7 @@ public enum TextureType : byte
     Texture2D
 }
 public record TextureBuildOptions(
-    TextureType Type,
+    TextureType Type = TextureType.Texture2D,
     PixelInternalFormat InternalFormat = PixelInternalFormat.Rgba8,
     PixelFormat PixelFormat = PixelFormat.Rgba,
     PixelType PixelType = PixelType.UnsignedByte,
@@ -265,11 +265,6 @@ public sealed class TextureBindless : Texture, IDisposable
     private bool GenerateMips;
     bool Generating;
 
-    private static bool CheckBindlessSupport()
-    {
-        string? ext = GL.GetString(StringName.Extensions);
-        return ext != null && ext.Contains("GL_ARB_bindless_texture");
-    }
 
     public TextureBindless(
         int width,
@@ -284,10 +279,7 @@ public sealed class TextureBindless : Texture, IDisposable
     {
         if (data == IntPtr.Zero)
             throw new ArgumentException("Data must be provided.", "data");
-
-        if (!CheckBindlessSupport())
-            throw new NotSupportedException("ARB_bindless_texture not supported by the current context/GPU.");
-
+            
         Width = width;
         Height = height;
         Data = data;
@@ -433,6 +425,16 @@ public static class TextureFactory
     static TextureFactory()
     {
         StbImage.stbi_set_flip_vertically_on_load(1);
+    }
+    public static TextureBindless BindlessFromImage(string path, TextureBuildOptions options)
+    {
+        options = options with { Type = TextureType.TextureBindless };
+        return (TextureBindless)BuildFromImage(path, options);
+    }
+    public static Texture2D Build2DFromImage(string path, TextureBuildOptions options)
+    {
+        options = options with { Type = TextureType.Texture2D };
+        return (Texture2D)BuildFromImage(path, options);
     }
     public static Texture BuildFromImage(string path, TextureBuildOptions options)
     {
