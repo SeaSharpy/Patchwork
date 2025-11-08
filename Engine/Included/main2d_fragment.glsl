@@ -5,94 +5,87 @@ layout(location = 1) flat in int Instance;
 layout(location = 2) in vec3 WorldPos;
 layout(location = 0) out vec4 Colour;
 
+const float WhiteThresh = 0.99;
+const float BlackThresh = 0.01;
 const int MaxTotalSteps = 1024;
-float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
+bool isWhite(vec2 cell, int layer, inout int mip) {
+    if (mip < MaxLightMip)
+        mip += 1;
+    for (; ; ) {
+        if (mip < 0) {
+            mip = 0;
+            return false;
+        }
+        float v = textureLod(LightTexArray, vec3(cell, float(layer)), mip).r;
+        if (v >= WhiteThresh) return true;
+        if (v <= BlackThresh) return false;
+        mip -= 1;
+    }
+    return false;
+}
+float RayStepLength(vec2 dir, float move, bool fromX)
 {
-    const float WhiteThresh     = 0.999;
-    const float SoftTexels      = 20;
-
-    float sizeF = float(LightTexSize);
-    ivec2 dims  = ivec2(LightTexSize);
-
-    vec2 origin = uvStart * sizeF;
-    vec2 endPos = uvEnd * sizeF;
-    vec2 dir    = endPos - origin;
-    float dirLen = length(dir);
-
-    // Degenerate ray: just test the starting texel
-    if (all(lessThan(abs(dir), vec2(1e-6)))) {
-        ivec2 c0 = clamp(ivec2(floor(origin)), ivec2(0), dims - 1);
-        float r0 = texelFetch(LightTexArray, ivec3(c0, layer), 0).r;
-        float totalWhite = (r0 >= WhiteThresh) ? SoftTexels : 0.0;
-        return 1.0 - smoothstep(0.0, SoftTexels, totalWhite);
-    }
-
-    ivec2 cell = ivec2(floor(origin));
-    if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, dims))) {
-        // Outside the light mask counts as not occluded
-        return 1.0;
-    }
-
-    vec2 step = vec2(sign(dir));
-
-    vec2 nextBoundary = vec2(
-        (step.x > 0.0) ? float(cell.x + 1) : float(cell.x),
-        (step.y > 0.0) ? float(cell.y + 1) : float(cell.y)
-    );
-
-    vec2 tMax = vec2(
-        (dir.x != 0.0) ? (nextBoundary.x - origin.x) / dir.x : 1e30,
-        (dir.y != 0.0) ? (nextBoundary.y - origin.y) / dir.y : 1e30
-    );
-
-    vec2 tDelta = vec2(
-        (dir.x != 0.0) ? step.x / dir.x : 1e30,
-        (dir.y != 0.0) ? step.y / dir.y : 1e30
-    );
-
-    bool  inWhite        = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
-    float t              = 0.0;
-    float lastT          = 0.0;
-    float totalWhiteDist = 0.0;
-
-    // March along the ray, summing distances spent inside white cells
-    for (int i = 0; i < MaxTotalSteps; ++i) {
-        bool stepX = tMax.x < tMax.y;
-        if (stepX) {
-            t = tMax.x;
-            tMax.x += tDelta.x;
-            cell.x += int(step.x);
-        } else {
-            t = tMax.y;
-            tMax.y += tDelta.y;
-            cell.y += int(step.y);
-        }
-
-        float segDist = (t - lastT) * dirLen;
-        lastT = t;
-
-        if (inWhite) {
-            totalWhiteDist += segDist;
-            // Early out once we exceed the soft threshold
-            if (totalWhiteDist >= SoftTexels) {
-                return 0.0;
-            }
-        }
-
-        // Termination: reached end of segment or left the mask
-        if (t > 1.0 || any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, dims))) {
-            float shade = 1.0 - smoothstep(0.0, SoftTexels, totalWhiteDist);
-            return shade;
-        }
-
-        // Fetch next cell state and continue
-        inWhite = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
-    }
-
-    // Safety exit for very long rays
-    return 1.0 - smoothstep(0.0, SoftTexels, totalWhiteDist);
+    // dir is normalized
+    // move is the distance along one axis (positive)
+    // fromX = true if 'move' is an X movement, false if Y
+    if (fromX)
+        return abs(move / max(abs(dir.x), 1e-8));
+    else
+        return abs(move / max(abs(dir.y), 1e-8));
 }
 
+vec3 ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
+{
+    const float SoftTexels = 20.0;
+    const float WhiteThreshold = 0.5;
+
+    vec2 dir = uvEnd - uvStart;
+    float dirLen = length(dir);
+
+    if (dirLen < 1e-6 || any(lessThan(uvStart, vec2(0.0))) || any(greaterThan(uvStart, vec2(1.0))))
+        return vec3(1.0);
+
+    vec2 rd = dir / dirLen;
+    vec2 dimensions = vec2(float(LightTexSize));
+
+    const float SoftUV = 0.1;
+
+    vec2 step = sign(dir);
+    float mip = MaxLightMip;
+    float t = 1e-5;
+    float lastT = 0.0;
+    float totalWhiteUV = 0.0;
+    bool inWhite;
+    for (int i = 0; i < MaxTotalSteps; ++i)
+    {
+        vec2 point = uvStart + rd * t;
+        if (t > dirLen || any(lessThan(point, vec2(0.0))) || any(greaterThan(point, vec2(1.0)))) break;
+        inWhite = isWhite(clamp(point, 0.0, 1.0), layer, mip);
+        vec2 mipDimensions = vec2(max(1.0, dimensions.x / exp2(float(mip))),
+                max(1.0, dimensions.y / exp2(float(mip))));
+        vec2 cellSize = 1.0 / mipDimensions;
+        ivec2 cell = ivec2(floor(point / cellSize));
+        vec2 nextBoundary = (cell + step) * cellSize;
+        vec2 cellLocalUV = fract(point / cellSize);
+        if (cellLocalUV.x < cellLocalUV.y) {
+            return vec3(inWhite ? 1.0 : 0.0);
+        }
+        else {
+            return vec3(inWhite ? 0.0 : 1.0);
+        }
+        float segDistUV = (t - lastT);
+        lastT = t;
+
+        if (inWhite)
+        {
+            totalWhiteUV += segDistUV;
+            if (totalWhiteUV >= SoftUV)
+                return vec3(0.0);
+        }
+    }
+
+    return vec3(1.0 - smoothstep(0.0, SoftUV, totalWhiteUV));
+}
 
 void main()
 {
@@ -118,7 +111,9 @@ void main()
         vec2 uvWorld = (Lights[i].Matrix * vec4(WorldPos, 1.0)).xy * 0.5 + 0.5;
         vec2 uvLight = vec2(0.5, 0.5);
 
-        float visibility = ShadowTraceDDA(i, uvWorld, uvLight);
+        vec3 visibility = ShadowTraceDDA(i, uvWorld, uvLight);
+        Colour = vec4(visibility, spriteColour.a);
+        return;
 
         vec3 lightColor = Lights[i].Color.rgb;
         float falloff = 1.0 - smoothstep(0.0, lightRadius, dist);

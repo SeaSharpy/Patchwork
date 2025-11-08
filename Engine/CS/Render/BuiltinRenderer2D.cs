@@ -53,7 +53,7 @@ public class BuiltinRenderer2D : IRenderSystem
 
         Light[] lights = ECS.GetComponents<Light>()
             .Where(l => l.Box.Intersects(box))
-            .OrderBy(_ => Random.Shared.NextDouble())
+            //.OrderBy(_ => Random.Shared.NextDouble())
             .ToArray();
 
         // Per-light sprite lists and projections
