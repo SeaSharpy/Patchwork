@@ -53,7 +53,7 @@ public class BuiltinRenderer2D : IRenderSystem
 
         Light[] lights = ECS.GetComponents<Light>()
             .Where(l => l.Box.Intersects(box))
-            //.OrderBy(_ => Random.Shared.NextDouble())
+            .OrderBy(_ => Random.Shared.NextDouble())
             .ToArray();
 
         // Per-light sprite lists and projections
@@ -141,8 +141,8 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.Blur.Use();
         Res.Blur.Set("ImageSize", new Vector2i((int)Viewport.Width, (int)Viewport.Height));
         Res.Blur.Set("Direction", new Vector2i(1, 0));
-        Res.Blur.Set("Radius", 50);
-        Res.Blur.Set("Sigma", 50f / 3f);
+        Res.Blur.Set("Radius", 25);
+        Res.Blur.Set("Sigma", 25f / 3f);
 
         GL.BindImageTexture(0, Res.DepthTexture, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.R32f);
         GL.BindImageTexture(1, Res.DepthTextureA, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.R32f);
@@ -181,8 +181,11 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.MainShader.Set("LightTexArray", 0);
         Res.MainShader.Set("DepthTex", 1);
         Res.MainShader.Set("DepthBlurTex", 2);
-        Res.MainShader.Set("LightTexSize", Resources2D.LightLayerSize);
         Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Resources2D.LightLayerSize, 2)));
+        Res.MainShader.Set("ShadowSoftness", 1f / 50f);
+        Res.MainShader.Set("AOStrength", 2.5f);
+        Res.MainShader.Set("LightingDepthStrength", 3f);
+        Res.MainShader.Set("AOColor", new Vector3(0.05f));
 
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2DArray, Res.LightTexArray);

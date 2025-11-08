@@ -5,16 +5,17 @@ layout(location = 1) flat in int Instance;
 layout(location = 2) in vec3 WorldPos;
 layout(location = 0) out vec4 Colour;
 
-const float WhiteThresh = 0.99;
-const float BlackThresh = 0.01;
-const int MaxTotalSteps = 1024;
-bool isWhite(vec2 cell, int layer, inout int mip) {
+const float BlackThresh = 1 / 65535;
+const float WhiteThresh = 1 - BlackThresh;
+const int MaxTotalSteps = 64;
+const float EPS = 1e-4;
+bool IsWhite(vec2 cell, int layer, inout int mip) {
     if (mip < MaxLightMip)
         mip += 1;
     for (; ; ) {
         if (mip < 0) {
             mip = 0;
-            return false;
+            return true;
         }
         float v = textureLod(LightTexArray, vec3(cell, float(layer)), mip).r;
         if (v >= WhiteThresh) return true;
@@ -23,55 +24,45 @@ bool isWhite(vec2 cell, int layer, inout int mip) {
     }
     return false;
 }
-float RayStepLength(vec2 dir, float move, bool fromX)
-{
-    // dir is normalized
-    // move is the distance along one axis (positive)
-    // fromX = true if 'move' is an X movement, false if Y
-    if (fromX)
-        return abs(move / max(abs(dir.x), 1e-8));
-    else
-        return abs(move / max(abs(dir.y), 1e-8));
-}
 
-vec3 ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
-{
-    const float SoftTexels = 20.0;
-    const float WhiteThreshold = 0.5;
 
+float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
+{
     vec2 dir = uvEnd - uvStart;
+    if (dir.x == 0.0) dir.x = EPS;
+    if (dir.y == 0.0) dir.y = EPS;
     float dirLen = length(dir);
 
-    if (dirLen < 1e-6 || any(lessThan(uvStart, vec2(0.0))) || any(greaterThan(uvStart, vec2(1.0))))
-        return vec3(1.0);
+    if (dirLen < EPS || any(lessThan(uvStart, vec2(0.0))) || any(greaterThan(uvStart, vec2(1.0))))
+        return 1.0;
 
     vec2 rd = dir / dirLen;
-    vec2 dimensions = vec2(float(LightTexSize));
 
-    const float SoftUV = 0.1;
-
-    vec2 step = sign(dir);
-    float mip = MaxLightMip;
-    float t = 1e-5;
+    vec2 stepA = sign(dir);
+    vec2 stepB = step(0.0, dir);
+    int mip = MaxLightMip;
+    float t = EPS;
     float lastT = 0.0;
     float totalWhiteUV = 0.0;
     bool inWhite;
-    for (int i = 0; i < MaxTotalSteps; ++i)
+    int i;
+    for (i = 0; i < MaxTotalSteps; ++i)
     {
         vec2 point = uvStart + rd * t;
         if (t > dirLen || any(lessThan(point, vec2(0.0))) || any(greaterThan(point, vec2(1.0)))) break;
-        inWhite = isWhite(clamp(point, 0.0, 1.0), layer, mip);
-        vec2 mipDimensions = vec2(max(1.0, dimensions.x / exp2(float(mip))),
-                max(1.0, dimensions.y / exp2(float(mip))));
+        inWhite = IsWhite(clamp(point, 0.0, 1.0), layer, mip);
+        vec2 mipDimensions = textureSize(LightTexArray, mip).xy;
         vec2 cellSize = 1.0 / mipDimensions;
         ivec2 cell = ivec2(floor(point / cellSize));
-        vec2 nextBoundary = (cell + step) * cellSize;
+        vec2 nextBoundary = (vec2(cell) + stepB) * cellSize;
+        vec2 offset = nextBoundary - point;
         vec2 cellLocalUV = fract(point / cellSize);
-        if (cellLocalUV.x < cellLocalUV.y) {
-            return vec3(inWhite ? 1.0 : 0.0);
-        }
-        else {
-            return vec3(inWhite ? 0.0 : 1.0);
+        float moveX = offset.x / rd.x;
+        float moveY = offset.y / rd.y;
+        if (abs(moveX) < abs(moveY)) {
+            t += max(moveX, EPS);
+        } else {
+            t += max(moveY, EPS);
         }
         float segDistUV = (t - lastT);
         lastT = t;
@@ -79,12 +70,11 @@ vec3 ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
         if (inWhite)
         {
             totalWhiteUV += segDistUV;
-            if (totalWhiteUV >= SoftUV)
-                return vec3(0.0);
+            if (totalWhiteUV >= ShadowSoftness)
+                break;
         }
     }
-
-    return vec3(1.0 - smoothstep(0.0, SoftUV, totalWhiteUV));
+    return 1.0 - clamp(smoothstep(0.0, ShadowSoftness, totalWhiteUV), 0.0, 1.0);
 }
 
 void main()
@@ -98,22 +88,20 @@ void main()
     float blur = texture(DepthBlurTex, gl_FragCoord.xy / vec2(ViewportSize)).r;
     float AO = 1.0 - max(depth - blur, 0.0);
 
-    vec3 ambient = vec3(0.1);
-    vec3 color = ambient * AO * spriteColour.rgb;
+    vec3 color = AOColor * pow(AO, AOStrength) * spriteColour.rgb;
+    vec3 worldPos = vec3(WorldPos.xy, WorldPos.z * LightingDepthStrength);
 
     for (int i = 0; i < LightCount; ++i)
     {
         vec3 lp = vec3(Lights[i].Position, 0.0);
         float lightRadius = Lights[i].Radius;
-        float dist = length(WorldPos - lp);
+        float dist = length(worldPos - lp);
         if (dist > lightRadius) continue;
 
-        vec2 uvWorld = (Lights[i].Matrix * vec4(WorldPos, 1.0)).xy * 0.5 + 0.5;
+        vec2 uvWorld = (Lights[i].Matrix * vec4(worldPos, 1.0)).xy * 0.5 + 0.5;
         vec2 uvLight = vec2(0.5, 0.5);
 
-        vec3 visibility = ShadowTraceDDA(i, uvWorld, uvLight);
-        Colour = vec4(visibility, spriteColour.a);
-        return;
+        float visibility = ShadowTraceDDA(i, uvWorld, uvLight);
 
         vec3 lightColor = Lights[i].Color.rgb;
         float falloff = 1.0 - smoothstep(0.0, lightRadius, dist);

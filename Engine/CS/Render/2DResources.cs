@@ -17,7 +17,7 @@ public class Resources2D : IDisposable
     public int LightDataSsbo = GL.GenBuffer();
 
     public const int LightLayerSize = 1024;
-    public const int LightLayerCount = 32;
+    public const int LightLayerCount = 16;
 
     private int ScreenWidth;
     private int ScreenHeight;
@@ -36,9 +36,9 @@ public class Resources2D : IDisposable
     {
         // Create 2D texture array for lights
         GL.BindTexture(TextureTarget.Texture2DArray, LightTexArray);
-        GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R8,
+        GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R16,
                       LightLayerSize, LightLayerSize, LightLayerCount,
-                      0, PixelFormat.Red, PixelType.UnsignedByte, IntPtr.Zero);
+                      0, PixelFormat.Red, PixelType.UnsignedShort, IntPtr.Zero);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);

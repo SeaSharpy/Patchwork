@@ -5,8 +5,11 @@ uniform int  LightCount;
 uniform sampler2DArray LightTexArray;
 uniform sampler2D DepthTex;
 uniform sampler2D DepthBlurTex;
-uniform int LightTexSize;
+uniform float LightingDepthStrength;
 uniform int MaxLightMip;
+uniform float ShadowSoftness;
+uniform float AOStrength;
+uniform vec3 AOColor;
 struct SpriteData {
     mat4 Transform;
     uint64_t Texture;
