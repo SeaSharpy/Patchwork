@@ -18,9 +18,9 @@ public static class InputState
         OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState state
     )
     {
-        MouseStateInternal.Position = position;
-        MouseStateInternal.PreviousPosition = previousPosition;
-        MouseStateInternal.Delta = delta;
+        MouseStateInternal.Position = new Vector2(position.X, Viewport.Height - position.Y);
+        MouseStateInternal.PreviousPosition = new Vector2(previousPosition.X, Viewport.Height - previousPosition.Y);
+        MouseStateInternal.Delta = new Vector2(delta.X, -delta.Y);
         MouseStateInternal.LeftButtonDown = leftButtonDown;
         MouseStateInternal.RightButtonDown = rightButtonDown;
         MouseStateInternal.MiddleButtonDown = middleButtonDown;

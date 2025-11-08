@@ -17,6 +17,7 @@ public class BuiltinRenderer2D : IRenderSystem
     [StructLayout(LayoutKind.Sequential)]
     private struct LightData
     {
+        public Matrix4 Matrix;
         public Vector4 Color;
         public Vector2 Position;
         public float Radius;
@@ -44,14 +45,14 @@ public class BuiltinRenderer2D : IRenderSystem
     {
         if (!CameraProjection.Ortho) return;
 
-        Res.ResizeIfNeeded(Viewport.Width, Viewport.Height);
+        Res.ResizeIfNeeded((int)Viewport.Width, (int)Viewport.Height);
 
         Box box = CameraProjection.Box;
         Sprite[] sprites = ECS.GetComponents<Sprite>().OrderByDescending(s => s.Depth).ToArray();
         SpriteData[] data = sprites.Select(GetSpriteData).ToArray();
 
         Light[] lights = ECS.GetComponents<Light>()
-            .Where(l => l.Box.Contains(box))
+            .Where(l => l.Box.Intersects(box))
             .OrderBy(_ => Random.Shared.NextDouble())
             .ToArray();
 
@@ -62,7 +63,7 @@ public class BuiltinRenderer2D : IRenderSystem
         for (int i = 0; i < lights.Length; i++)
         {
             Light light = lights[i];
-            perLight[i] = sprites.Where(s => s.Box.Contains(light.Box))
+            perLight[i] = sprites.Where(s => s.Box.Intersects(light.Box))
                                  .Where(s => s.Depth == 0)
                                  .Select(GetSpriteData).ToArray();
             lightProjections[i] = light.Box.ToOrthoMatrix();
@@ -77,7 +78,8 @@ public class BuiltinRenderer2D : IRenderSystem
             {
                 Position = pos,
                 Color = lights[i].Color,
-                Radius = lights[i].Radius
+                Radius = lights[i].Radius,
+                Matrix = lights[i].Box.ToOrthoMatrix()
             };
         }
         Res.UpdateLightData(lightData);
@@ -118,13 +120,12 @@ public class BuiltinRenderer2D : IRenderSystem
 
         // Build depth (scene) to Res.DepthTexture
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, Res.DepthFbo);
-        GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
+        GL.Viewport((int)Viewport.X, (int)Viewport.Y, (int)Viewport.Width, (int)Viewport.Height);
         GL.ClearColor(1f, 1f, 1f, 1f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         Res.DepthShader.Use();
         Res.DepthShader.Set("Projection", CameraProjection.Projection);
-        Res.DepthShader.Set("View", CameraEntity.TransformMatrix);
         Res.DepthShader.Set("SpriteCount", data.Length);
 
         Res.UpdateSpriteData(data);
@@ -134,11 +135,11 @@ public class BuiltinRenderer2D : IRenderSystem
         GL.DrawElementsInstanced(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, IntPtr.Zero, data.Length);
 
         // Blur depth into DepthTextureB via DepthTextureA
-        int groupsX = (Viewport.Width + 16 - 1) / 16;
-        int groupsY = (Viewport.Height + 16 - 1) / 16;
+        int groupsX = ((int)Viewport.Width + 16 - 1) / 16;
+        int groupsY = ((int)Viewport.Height + 16 - 1) / 16;
 
         Res.Blur.Use();
-        Res.Blur.Set("ImageSize", new Vector2i(Viewport.Width, Viewport.Height));
+        Res.Blur.Set("ImageSize", new Vector2i((int)Viewport.Width, (int)Viewport.Height));
         Res.Blur.Set("Direction", new Vector2i(1, 0));
         Res.Blur.Set("Radius", 50);
         Res.Blur.Set("Sigma", 50f / 3f);
@@ -159,7 +160,7 @@ public class BuiltinRenderer2D : IRenderSystem
 
         // Composite in main pass: provide light array (with mips), raw depth, and blurred depth
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
+        GL.Viewport((int)Viewport.X, (int)Viewport.Y, (int)Viewport.Width, (int)Viewport.Height);
         GL.ClearColor(0.5f, 0.55f, 0.6f, 1f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
         GL.Enable(EnableCap.Blend);
@@ -167,7 +168,6 @@ public class BuiltinRenderer2D : IRenderSystem
 
         Res.MainShader.Use();
         Res.MainShader.Set("Projection", CameraProjection.Projection);
-        Res.MainShader.Set("View", CameraEntity.TransformMatrix);
         Res.MainShader.Set("ViewportSize", new Vector2(Viewport.Width, Viewport.Height));
         Res.MainShader.Set("SpriteCount", data.Length);
         Res.MainShader.Set("LightCount", lightCount);
@@ -181,6 +181,8 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.MainShader.Set("LightTexArray", 0);
         Res.MainShader.Set("DepthTex", 1);
         Res.MainShader.Set("DepthBlurTex", 2);
+        Res.MainShader.Set("LightTexSize", Resources2D.LightLayerSize);
+        Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Resources2D.LightLayerSize, 2)));
 
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2DArray, Res.LightTexArray);
@@ -210,7 +212,15 @@ public class Sprite : IDataComponent
     public TextureBindless Texture;
     public float Depth;
     public bool Transparent;
-    public Box Box => new(Entity.Transform.Position.Xy - Entity.Transform.Scale.Xy * 0.5f, Entity.Transform.Position.Xy + Entity.Transform.Scale.Xy * 0.5f);
+    public Box Box
+    {
+        get
+        {
+            Vector2 size = Entity.Transform.Scale.Xy;
+            Vector2 min = Entity.Transform.Position.Xy - size * 0.5f;
+            return new(min, size);
+        }
+    }
 
     public Sprite(TextureBindless texture, float depth = 0)
     {
@@ -223,7 +233,7 @@ public class Light : IDataComponent
 {
     public Vector4 Color;
     public float Radius;
-    public Box Box => new((Entity.Transform.Position - Vector3.One * Radius).Xy, (Entity.Transform.Position + Vector3.One * Radius).Xy);
+    public Box Box => new((Entity.Transform.Position - Vector3.One * Radius).Xy, Vector2.One * Radius * 2);
 
     public Light(Vector4 color, float radius = 0)
     {

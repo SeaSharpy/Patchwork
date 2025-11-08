@@ -87,7 +87,7 @@ public class Engine : GameWindow
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
-        GL.Viewport(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height);
+        GL.Viewport((int)Viewport.X, (int)Viewport.Y, (int)Viewport.Width, (int)Viewport.Height);
         ECS.Render();
         PostRender?.Invoke();
         UIRenderer.Flush();
@@ -118,19 +118,48 @@ public class Camera
         get
         {
             Vector2 offset = CameraEntity.Transform.Position.Xy;
-            return new(offset - OrthoSize * 0.5f, offset + OrthoSize * 0.5f);
+            return new(offset - OrthoSize * 0.5f, OrthoSize);
         }
     }
+
     public float Size;
     public bool Width;
+
+    // If Width is true, Size is the width, so height = width / aspect.
+    // If Width is false, Size is the height, so width = height * aspect.
     public float OrthoWidth => Width ? Size : Size * Aspect;
-    public float OrthoHeight => Width ? Size * Aspect : Size;
+    public float OrthoHeight => Width ? Size / Aspect : Size;
+
     public Vector2 OrthoSize => new(OrthoWidth, OrthoHeight);
+
     public float Near = 0, Far = 1;
     public float FOV;
-    public float Aspect => Viewport.Width / Viewport.Height;
-    public Matrix4 Projection => Ortho ? new Box(-OrthoSize * 0.5f, OrthoSize * 0.5f).ToOrthoMatrix(Near, Far) : Matrix4.CreatePerspectiveFieldOfView(FOV, Aspect, Near, Far);
+
+    // Ensure floating point division and guard against zero height during resize.
+    public float Aspect
+    {
+        get
+        {
+            float h = Viewport.Height;
+            return h > 0 ? Viewport.Width / (float)h : 1f;
+        }
+    }
+
+    public Matrix4 Projection
+    {
+        get
+        {
+            Matrix4 projection = Ortho
+                ? Matrix4.CreateOrthographic(OrthoWidth, OrthoHeight, Near, Far)
+                : Matrix4.CreatePerspectiveFieldOfView(FOV, Aspect, Near, Far);
+
+            Matrix4 view = CameraEntity.TransformMatrix.Inverted();
+            return view * projection;
+        }
+    }
+
     private Camera() { }
+
     public static Camera CreateOrthoGraphic(bool width, float size, float near = 0, float far = 1)
     {
         Camera camera = new();
@@ -141,6 +170,7 @@ public class Camera
         camera.Far = far;
         return camera;
     }
+
     public static Camera CreatePerspective(float fov, float near = 0.01f, float far = 100f)
     {
         Camera camera = new();
@@ -151,6 +181,7 @@ public class Camera
         return camera;
     }
 }
+
 
 public static class Helper
 {
@@ -170,7 +201,7 @@ public static class Helper
         get => Instance.Title;
         set => Instance.Title = value;
     }
-    public static Camera CameraProjection = Patchwork.Camera.CreateOrthoGraphic(false, 16);
+    public static Camera CameraProjection = Camera.CreateOrthoGraphic(false, 8);
     public static void Close() => Instance.Close();
     public static string Clipboard
     {

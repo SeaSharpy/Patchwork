@@ -16,7 +16,7 @@ public class Resources2D : IDisposable
     public int SpriteDataSsbo = GL.GenBuffer();   // Sprite data buffer
     public int LightDataSsbo = GL.GenBuffer();
 
-    public const int LightLayerSize = 512;
+    public const int LightLayerSize = 1024;
     public const int LightLayerCount = 32;
 
     private int ScreenWidth;
@@ -39,8 +39,8 @@ public class Resources2D : IDisposable
         GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R8,
                       LightLayerSize, LightLayerSize, LightLayerCount,
                       0, PixelFormat.Red, PixelType.UnsignedByte, IntPtr.Zero);
-        GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-        GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
+        GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);

@@ -159,7 +159,7 @@ public class BuiltinRenderer : IRenderSystem
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
         GL.BlitFramebuffer(
             0, 0, GBufferWidth, GBufferHeight,
-            viewport.X, viewport.Y, viewport.X + viewport.Width, viewport.Y + viewport.Height,
+            (int)viewport.X, (int)viewport.Y, (int)viewport.X + (int)viewport.Width, (int)viewport.Y + (int)viewport.Height,
             ClearBufferMask.ColorBufferBit,
             BlitFramebufferFilter.Linear);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -195,7 +195,7 @@ public class BuiltinRenderer : IRenderSystem
         for (int i = 1; i <= 4; i++)
             GL.Disable(IndexedEnableCap.Blend, i);
 
-        EnsureGBuffer(viewport.Width, viewport.Height);
+        EnsureGBuffer((int)viewport.Width, (int)viewport.Height);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, GBufferFbo);
 
         GL.ClearBuffer(ClearBuffer.Color, 0, ClearColorVector);
@@ -455,7 +455,7 @@ public class BuiltinRenderer : IRenderSystem
             }
         }
 
-        GL.Viewport(viewport.X, viewport.Y, viewport.Width, viewport.Height);
+        GL.Viewport((int)viewport.X, (int)viewport.Y, (int)viewport.Width, (int)viewport.Height);
         GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -470,7 +470,7 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("View", viewMatrix);
             shader.Set("Time", Time);
             shader.Set("CameraPosition", CameraEntity.Transform.Position);
-            shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
+            shader.Set("ViewportSize", new Vector2((int)viewport.Width, (int)viewport.Height));
         });
 
         GL.ColorMask(true, true, true, true);
@@ -484,7 +484,7 @@ public class BuiltinRenderer : IRenderSystem
             shader.Set("View", viewMatrix);
             shader.Set("Time", Time);
             shader.Set("CameraPosition", CameraEntity.Transform.Position);
-            shader.Set("ViewportSize", new Vector2(viewport.Width, viewport.Height));
+            shader.Set("ViewportSize", new Vector2((int)viewport.Width, (int)viewport.Height));
         });
 
         if (transparentCmds.Count > 0)
