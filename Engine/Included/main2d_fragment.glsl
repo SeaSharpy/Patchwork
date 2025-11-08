@@ -82,7 +82,7 @@ void main()
     SpriteData s = Sprites[Instance];
     sampler2D tex = sampler2D(s.Texture);
     vec4 spriteColour = texture(tex, UV);
-    if (spriteColour.a < 0.5) discard;
+    if (spriteColour.a < AlphaThresh) discard;
 
     float depth = texture(DepthTex, gl_FragCoord.xy / vec2(ViewportSize)).r;
     float blur = texture(DepthBlurTex, gl_FragCoord.xy / vec2(ViewportSize)).r;

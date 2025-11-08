@@ -37,6 +37,14 @@ public class BuiltinRenderer2D : IRenderSystem
 
     Resources2D Res = new();
 
+    public BuiltinRenderer2D(int shadowResolution = 1024, int maxShadows = 16, float shadowSharpness = 25f, float aoStrength = 2.5f, float lightingDepthStrength = 2f, Vector3? aoColor = null)
+    {
+        ShadowSharpness = shadowSharpness;
+        AOStrength = aoStrength;
+        LightingDepthStrength = lightingDepthStrength;
+        AOColor = aoColor ?? new Vector3(0.05f);
+        Res = new(shadowResolution, maxShadows);
+    }
     public void Load()
     {
     }
@@ -85,7 +93,7 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.UpdateLightData(lightData);
 
         // Light pass into array layers
-        int lightCount = Math.Min(lights.Length, Resources2D.LightLayerCount);
+        int lightCount = Math.Min(lights.Length, Res.LightLayerCount);
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, Res.LightFbo);
         GL.Disable(EnableCap.Blend);
@@ -96,7 +104,7 @@ public class BuiltinRenderer2D : IRenderSystem
                                        FramebufferAttachment.ColorAttachment0,
                                        Res.LightTexArray, 0, i);
 
-            GL.Viewport(0, 0, Resources2D.LightLayerSize, Resources2D.LightLayerSize);
+            GL.Viewport(0, 0, Res.LightLayerSize, Res.LightLayerSize);
             GL.ClearColor(0f, 0f, 0f, 0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -181,8 +189,8 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.MainShader.Set("LightTexArray", 0);
         Res.MainShader.Set("DepthTex", 1);
         Res.MainShader.Set("DepthBlurTex", 2);
-        Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Resources2D.LightLayerSize, 2)));
-        Res.MainShader.Set("ShadowSoftness", 1f / 50f);
+        Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Res.LightLayerSize, 2)));
+        Res.MainShader.Set("ShadowSoftness", 1f / ShadowSharpness);
         Res.MainShader.Set("AOStrength", 2.5f);
         Res.MainShader.Set("LightingDepthStrength", 3f);
         Res.MainShader.Set("AOColor", new Vector3(0.05f));
@@ -208,6 +216,10 @@ public class BuiltinRenderer2D : IRenderSystem
     {
         Res.Dispose();
     }
+    public float ShadowSharpness = 25f;
+    public float AOStrength = 2.5f;
+    public float LightingDepthStrength = 2f;
+    public Vector3 AOColor = new(0.05f);
 }
 
 public class Sprite : IDataComponent

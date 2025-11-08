@@ -16,8 +16,8 @@ public class Resources2D : IDisposable
     public int SpriteDataSsbo = GL.GenBuffer();   // Sprite data buffer
     public int LightDataSsbo = GL.GenBuffer();
 
-    public const int LightLayerSize = 1024;
-    public const int LightLayerCount = 16;
+    public int LightLayerSize = 1024;
+    public int LightLayerCount = 16;
 
     private int ScreenWidth;
     private int ScreenHeight;
@@ -32,8 +32,10 @@ public class Resources2D : IDisposable
     public int QuadVbo;
     public int QuadEbo;
 
-    public Resources2D()
+    public Resources2D(int lightLayerSize = 1024, int lightLayerCount = 16)
     {
+        LightLayerSize = lightLayerSize;
+        LightLayerCount = lightLayerCount;
         // Create 2D texture array for lights
         GL.BindTexture(TextureTarget.Texture2DArray, LightTexArray);
         GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R16,

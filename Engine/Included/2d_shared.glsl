@@ -27,3 +27,5 @@ struct LightData {
 
 Buffer(Sprites, SpriteData, 0);
 Buffer(Lights, LightData, 1);
+
+const float AlphaThresh = 1 / 255;

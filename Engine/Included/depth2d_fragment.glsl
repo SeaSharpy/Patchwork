@@ -11,7 +11,7 @@ void main()
     SpriteData s  = Sprites[Instance];
     sampler2D tex = sampler2D(s.Texture);
     vec4 color    = texture(tex, UV);
-    if (color.a < 0.5)
+    if (color.a < AlphaThresh)
         discard;
     OutDepth    = FragDepth;
 }
