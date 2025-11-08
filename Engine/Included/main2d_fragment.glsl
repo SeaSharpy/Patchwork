@@ -6,12 +6,10 @@ layout(location = 2) in vec3 WorldPos;
 layout(location = 0) out vec4 Colour;
 
 const int MaxTotalSteps = 1024;
-
 float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
 {
     const float WhiteThresh     = 0.999;
-    const float SoftTraceTexels = 100.0;
-    const float SoftTexels      = SoftTraceTexels / sqrt(2.0);
+    const float SoftTexels      = 20;
 
     float sizeF = float(LightTexSize);
     ivec2 dims  = ivec2(LightTexSize);
@@ -21,14 +19,17 @@ float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
     vec2 dir    = endPos - origin;
     float dirLen = length(dir);
 
+    // Degenerate ray: just test the starting texel
     if (all(lessThan(abs(dir), vec2(1e-6)))) {
         ivec2 c0 = clamp(ivec2(floor(origin)), ivec2(0), dims - 1);
         float r0 = texelFetch(LightTexArray, ivec3(c0, layer), 0).r;
-        return (r0 >= WhiteThresh) ? 0.0 : 1.0;
+        float totalWhite = (r0 >= WhiteThresh) ? SoftTexels : 0.0;
+        return 1.0 - smoothstep(0.0, SoftTexels, totalWhite);
     }
 
     ivec2 cell = ivec2(floor(origin));
     if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, dims))) {
+        // Outside the light mask counts as not occluded
         return 1.0;
     }
 
@@ -49,12 +50,12 @@ float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
         (dir.y != 0.0) ? step.y / dir.y : 1e30
     );
 
-    bool  inWhite     = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
-    float t           = 0.0;
-    float lastT       = 0.0;
-    float regionDist  = 0.0;
-    float accumShade  = 1.0;
+    bool  inWhite        = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
+    float t              = 0.0;
+    float lastT          = 0.0;
+    float totalWhiteDist = 0.0;
 
+    // March along the ray, summing distances spent inside white cells
     for (int i = 0; i < MaxTotalSteps; ++i) {
         bool stepX = tMax.x < tMax.y;
         if (stepX) {
@@ -67,33 +68,31 @@ float ShadowTraceDDA(int layer, vec2 uvStart, vec2 uvEnd)
             cell.y += int(step.y);
         }
 
-        regionDist += (t - lastT) * dirLen;
+        float segDist = (t - lastT) * dirLen;
         lastT = t;
 
-        if (t > 1.0 || any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, dims))) {
-            if (inWhite) return 0.0;
-            return accumShade;
-        }
-
-        bool nowWhite = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
-
-        if (nowWhite != inWhite) {
-            if (inWhite) {
-                float insideShade = clamp(1.0 - smoothstep(0.0, SoftTexels, regionDist), 0.0, 1.0);
-                accumShade = clamp(accumShade * insideShade, 0.0, 1.0);
-                if (accumShade <= 0.0) return 0.0;
+        if (inWhite) {
+            totalWhiteDist += segDist;
+            // Early out once we exceed the soft threshold
+            if (totalWhiteDist >= SoftTexels) {
+                return 0.0;
             }
-            inWhite = nowWhite;
-            regionDist = 0.0;
         }
 
-        if (inWhite && regionDist > SoftTraceTexels) {
-            return 0.0;
+        // Termination: reached end of segment or left the mask
+        if (t > 1.0 || any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, dims))) {
+            float shade = 1.0 - smoothstep(0.0, SoftTexels, totalWhiteDist);
+            return shade;
         }
+
+        // Fetch next cell state and continue
+        inWhite = texelFetch(LightTexArray, ivec3(cell, layer), 0).r >= WhiteThresh;
     }
 
-    return inWhite ? 0.0 : accumShade;
+    // Safety exit for very long rays
+    return 1.0 - smoothstep(0.0, SoftTexels, totalWhiteDist);
 }
+
 
 void main()
 {
