@@ -220,6 +220,14 @@ public class BuiltinRenderer2D : IRenderSystem
     public float AOStrength = 2.5f;
     public float LightingDepthStrength = 2f;
     public Vector3 AOColor = new(0.05f);
+    public ShadowMode ShadowMode = ShadowMode.Hard;
+}
+
+public enum ShadowMode : byte {
+    VolumetricSoft,
+    SimpleSoft,
+    HardDark,
+    Hard
 }
 
 public class Sprite : IDataComponent
