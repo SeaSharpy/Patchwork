@@ -6,4 +6,8 @@ shaderincluded_depth2d_vertex: depth2d_vertex.glsl
 shaderincluded_depth2d_fragment: depth2d_fragment.glsl
 shaderincluded_light2d_vertex: light2d_vertex.glsl
 shaderincluded_light2d_fragment: light2d_fragment.glsl
+shaderincluded_tonemap2d_vertex: quad2d_vertex.glsl
+shaderincluded_tonemap2d_fragment: tonemap2d_fragment.glsl
+shaderincluded_bounce2d_vertex: quad2d_vertex.glsl
+shaderincluded_bounce2d_fragment: bounce2d_fragment.glsl
 lib: lib.glsl

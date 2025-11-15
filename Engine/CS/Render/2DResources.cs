@@ -1,19 +1,28 @@
 using System;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 
 namespace Patchwork.Render;
 
 public class Resources2D : IDisposable
 {
-    public int DepthTexture;     // existing
-    public int DepthTextureA;    // new extra depth
-    public int DepthTextureB;    // new extra depth
+    public int DepthTexture;
+    public int DepthTextureA;
+    public int DepthTextureB;
     public int DepthFbo;
 
-    public int LightTexArray = GL.GenTexture();   // 2D array, 32 layers
-    public int LightFbo = GL.GenFramebuffer();    // Single FBO bound to the whole array
+    public int ScreenDepthTextureRgba;
 
-    public int SpriteDataSsbo = GL.GenBuffer();   // Sprite data buffer
+    public int ShadedTexture;
+    public int ShadedFbo;
+
+    public int BounceShadedTexture;
+    public int BounceShadedFbo;
+
+    public int LightTexArray = GL.GenTexture();
+    public int LightFbo = GL.GenFramebuffer();
+
+    public int SpriteDataSsbo = GL.GenBuffer();
     public int LightDataSsbo = GL.GenBuffer();
 
     public int LightLayerSize = 1024;
@@ -27,6 +36,8 @@ public class Resources2D : IDisposable
     public Shader DepthShader = Shader.Embedded("depth2d");
     public Shader MainShader = Shader.Embedded("main2d");
     public Shader LightShader = Shader.Embedded("light2d");
+    public Shader TonemapShader = Shader.Embedded("tonemap2d");
+    public Shader BounceShader = Shader.Embedded("bounce2d");
 
     public int QuadVao;
     public int QuadVbo;
@@ -36,11 +47,9 @@ public class Resources2D : IDisposable
     {
         LightLayerSize = lightLayerSize;
         LightLayerCount = lightLayerCount;
-        // Create 2D texture array for lights
+
         GL.BindTexture(TextureTarget.Texture2DArray, LightTexArray);
-        GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R16,
-                      LightLayerSize, LightLayerSize, LightLayerCount,
-                      0, PixelFormat.Red, PixelType.UnsignedShort, IntPtr.Zero);
+        GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.R16, LightLayerSize, LightLayerSize, LightLayerCount, 0, PixelFormat.Red, PixelType.UnsignedShort, IntPtr.Zero);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
@@ -48,21 +57,18 @@ public class Resources2D : IDisposable
         GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
 
-        // Framebuffer for light rendering
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, LightFbo);
         GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, LightTexArray, 0);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
-        // Quad geometry setup
         float[] quadVerts =
         {
-            -0.5f, -0.5f,  0f, 0f,
-             0.5f, -0.5f,  1f, 0f,
-             0.5f,  0.5f,  1f, 1f,
-            -0.5f,  0.5f,  0f, 1f
+            -0.5f, -0.5f, 0f, 0f,
+             0.5f, -0.5f, 1f, 0f,
+             0.5f,  0.5f, 1f, 1f,
+            -0.5f,  0.5f, 0f, 1f
         };
-
         uint[] quadIdx = { 0, 1, 2, 0, 2, 3 };
 
         QuadVao = GL.GenVertexArray();
@@ -88,39 +94,34 @@ public class Resources2D : IDisposable
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
     }
+
     public Shader Blur = Shader.Compute(@"
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
-// Match the actual texture format: R32F
-layout(binding = 0, r32f)  readonly  uniform image2D Src;
-layout(binding = 1, r32f)  writeonly uniform image2D Dst;
-
-uniform ivec2 ImageSize;   // (width, height)
-uniform ivec2 Direction;   // (1,0) for horizontal, (0,1) for vertical)
-uniform int   Radius;      // blur radius
-uniform float Sigma;       // Gaussian sigma; if <= 0, box weights are used
-
+layout(binding = 0, r32f) readonly uniform image2D Src;
+layout(binding = 1, r32f) writeonly uniform image2D Dst;
+uniform ivec2 ImageSize;
+uniform ivec2 Direction;
+uniform int Radius;
+uniform float Sigma;
 void main()
 {
-    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(gid, ImageSize))) return;
-
-    float accum = 0.0;
-    float wsum  = 0.0;
-
-    for (int o = -Radius; o <= Radius; ++o)
-    {
-        float w = (Sigma > 0.0) ? exp(-0.5 * float(o * o) / (Sigma * Sigma)) : 1.0;
-        ivec2 p = clamp(gid + o * Direction, ivec2(0), ImageSize - 1);
-        float c = imageLoad(Src, p).r;  // single channel
-        accum += c * w;
-        wsum  += w;
-    }
-
-    float outValue = accum / max(wsum, 1e-8);
-    imageStore(Dst, gid, vec4(outValue)); // only .r is used for r32f
+	ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+	if (any(greaterThanEqual(gid, ImageSize))) return;
+	float accum = 0.0;
+	float wsum = 0.0;
+	for (int o = -Radius; o <= Radius; ++o)
+	{
+		float w = (Sigma > 0.0) ? exp(-0.5 * float(o * o) / (Sigma * Sigma)) : 1.0;
+		ivec2 p = clamp(gid + o * Direction, ivec2(0), ImageSize - 1);
+		float c = imageLoad(Src, p).r;
+		accum += c * w;
+		wsum += w;
+	}
+	float outValue = accum / max(wsum, 1e-8);
+	imageStore(Dst, gid, vec4(outValue));
 }
 ", "blur");
+
     public void ResizeIfNeeded(int width, int height)
     {
         if (width == ScreenWidth && height == ScreenHeight)
@@ -133,42 +134,79 @@ void main()
 
         DepthTexture = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, DepthTexture);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f,
-                      width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f, width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
         GL.BindTexture(TextureTarget.Texture2D, 0);
 
-        // Extra depth texture A (same params)
+        ScreenDepthTextureRgba = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, ScreenDepthTextureRgba);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, width, height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+
         DepthTextureA = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, DepthTextureA);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f,
-                      width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f, width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
         GL.BindTexture(TextureTarget.Texture2D, 0);
 
-        // Extra depth texture B (same params)
         DepthTextureB = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, DepthTextureB);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f,
-                      width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f, width, height, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
         GL.BindTexture(TextureTarget.Texture2D, 0);
 
-        // Keep your existing DepthFbo using DepthTexture as-is
+        ShadedTexture = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, ShadedTexture);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, width, height, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapLinear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+
+        ShadedFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, ShadedFbo);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, ShadedTexture, 0);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+        BounceShadedTexture = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, BounceShadedTexture);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, width, height, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.NearestMipmapNearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+
+        BounceShadedFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, BounceShadedFbo);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, BounceShadedTexture, 0);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
         DepthFbo = GL.GenFramebuffer();
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, DepthFbo);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, DepthTexture, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, ScreenDepthTextureRgba, 0);
+        DrawBuffersEnum[] depthDraw = new DrawBuffersEnum[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 };
+        GL.DrawBuffers(2, depthDraw);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
+
     public void EnsureSpriteDataCapacity(int byteSize)
     {
         if (byteSize <= SpriteDataCapacity)
@@ -260,6 +298,11 @@ void main()
             GL.DeleteTexture(DepthTexture);
             DepthTexture = 0;
         }
+        if (ScreenDepthTextureRgba != 0)
+        {
+            GL.DeleteTexture(ScreenDepthTextureRgba);
+            ScreenDepthTextureRgba = 0;
+        }
         if (DepthTextureA != 0)
         {
             GL.DeleteTexture(DepthTextureA);
@@ -269,6 +312,26 @@ void main()
         {
             GL.DeleteTexture(DepthTextureB);
             DepthTextureB = 0;
+        }
+        if (ShadedTexture != 0)
+        {
+            GL.DeleteTexture(ShadedTexture);
+            ShadedTexture = 0;
+        }
+        if (ShadedFbo != 0)
+        {
+            GL.DeleteFramebuffer(ShadedFbo);
+            ShadedFbo = 0;
+        }
+        if (BounceShadedTexture != 0)
+        {
+            GL.DeleteTexture(BounceShadedTexture);
+            BounceShadedTexture = 0;
+        }
+        if (BounceShadedFbo != 0)
+        {
+            GL.DeleteFramebuffer(BounceShadedFbo);
+            BounceShadedFbo = 0;
         }
     }
 

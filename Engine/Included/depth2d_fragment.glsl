@@ -5,6 +5,7 @@ layout(location = 1) flat in int Instance;
 layout(location = 2) in float FragDepth;
 
 layout(location = 0) out float OutDepth;
+layout(location = 1) out vec4 OutColor;
 
 void main()
 {
@@ -14,4 +15,5 @@ void main()
     if (color.a < AlphaThresh)
         discard;
     OutDepth    = FragDepth;
+    OutColor    = vec4(color.rgb, 1.0);
 }
