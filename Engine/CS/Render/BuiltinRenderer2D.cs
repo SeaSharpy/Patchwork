@@ -291,6 +291,14 @@ public class BuiltinRenderer2D : IRenderSystem
     {
         Res.Dispose();
     }
+    public ShadowMode ShadowMode = ShadowMode.Hard;
+}
+
+public enum ShadowMode : byte {
+    VolumetricSoft,
+    SimpleSoft,
+    HardDark,
+    Hard
 }
 
 public class Sprite : IDataComponent
