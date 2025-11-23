@@ -3,8 +3,4 @@ Game/**
 bin/**
 obj/**
 font.py
-GameNoEngine.csproj
-GameNoEngine.sln
-StoryMaker.csproj
-StoryMaker.sln
 ComicMono.ttf
