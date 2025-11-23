@@ -83,8 +83,6 @@ namespace Patchwork.Render.Objects
         { if (TryLoc(s, name, out int loc)) GL.Uniform4(loc, v.X, v.Y, v.Z, v.W); return s; }
         public static Shader Set(this Shader s, string name, Vector4d v)
         { if (TryLoc(s, name, out int loc)) GL.Uniform4(loc, v.X, v.Y, v.Z, v.W); return s; }
-        public static Shader Set(this Shader s, string name, Box v)
-        { if (TryLoc(s, name, out int loc)) GL.Uniform4(loc, v.X, v.Y, v.Width, v.Height); return s; }
 
         public static Shader Set(this Shader s, string name, IEnumerable<Vector4> values)
         { if (!TryLoc(s, name, out int loc)) return s; float[] flat = Flatten(values); if (flat.Length > 0) GL.Uniform4(loc, flat.Length / 4, flat); return s; }
