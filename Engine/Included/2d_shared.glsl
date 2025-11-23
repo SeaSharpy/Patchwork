@@ -16,6 +16,7 @@ uniform float LightingDepthStrength;
 uniform float AOStrength;
 uniform float GIStrength;
 uniform float GIDistanceStrength;
+uniform float LightingFalloffStrength;
 uniform int GIMip;
 struct SpriteData {
     mat4 Transform;

@@ -50,7 +50,7 @@ public class BuiltinRenderer2D : IRenderSystem
     private float TargetLuminance = 0.25f;
     private float ExposureSmoothing = 1f;
 
-    public BuiltinRenderer2D(int shadowResolution = 1024, int maxShadows = 16, float shadowSharpness = 25f, float aoStrength = 2.5f, float lightingDepthStrength = 0.5f, float giStrength = 1f, float giDistanceStrength = 10f, int giMip = 4)
+    public BuiltinRenderer2D(int shadowResolution = 1024, int maxShadows = 16, float shadowSharpness = 25f, float aoStrength = 2.5f, float lightingDepthStrength = 0.5f, float giStrength = 1f, float giDistanceStrength = 3f, int giMip = 4)
     {
         ShadowSharpness = shadowSharpness;
         AOStrength = aoStrength;
@@ -206,7 +206,9 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.MainShader.Set("DepthBlurTex", 2);
         Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Res.LightLayerSize, 2)));
         Res.MainShader.Set("ShadowSoftness", 1f / ShadowSharpness);
+        Res.MainShader.Set("ShadowMode", (int)ShadowMode);
         Res.MainShader.Set("LightingDepthStrength", LightingDepthStrength);
+        Res.MainShader.Set("LightingFalloffStrength", 4f);
 
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2DArray, Res.LightTexArray);
@@ -291,14 +293,12 @@ public class BuiltinRenderer2D : IRenderSystem
     {
         Res.Dispose();
     }
-    public ShadowMode ShadowMode = ShadowMode.Hard;
+    public ShadowMode ShadowMode = ShadowMode.VolumetricSoft;
 }
 
 public enum ShadowMode : byte {
-    VolumetricSoft,
-    SimpleSoft,
-    HardDark,
-    Hard
+    VolumetricSoft = 0,
+    Hard = 1
 }
 
 public class Sprite : IDataComponent
