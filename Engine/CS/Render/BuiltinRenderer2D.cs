@@ -117,7 +117,7 @@ public class BuiltinRenderer2D : IRenderSystem
         {
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, Res.LightTexArray, 0, i);
 
-            GL.Viewport(0, 0, Res.LightLayerSize, Res.LightLayerSize);
+            GL.Viewport(0, 0, Resources2D.LightLayerSize, Resources2D.LightLayerSize);
             GL.ClearColor(0f, 0f, 0f, 0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -204,7 +204,7 @@ public class BuiltinRenderer2D : IRenderSystem
         Res.MainShader.Set("LightTexArray", 0);
         Res.MainShader.Set("DepthTex", 1);
         Res.MainShader.Set("DepthBlurTex", 2);
-        Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Res.LightLayerSize, 2)));
+        Res.MainShader.Set("MaxLightMip", (int)Math.Floor(Math.Log(Resources2D.LightLayerSize, 2)));
         Res.MainShader.Set("ShadowSoftness", 1f / ShadowSharpness);
         Res.MainShader.Set("ShadowMode", (int)ShadowMode);
         Res.MainShader.Set("LightingDepthStrength", LightingDepthStrength);
@@ -312,6 +312,9 @@ public class Sprite : IDataComponent
         {
             Vector2 size = Entity.Transform.Scale.Xy;
             Vector2 min = Entity.Transform.Position.Xy - size * 0.5f;
+            min *= Resources2D.LightLayerSize;
+            min = new Vector2(MathF.Floor(min.X), MathF.Floor(min.Y));
+            min /= Resources2D.LightLayerSize;
             return new Box(min, size);
         }
     }

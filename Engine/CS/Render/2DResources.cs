@@ -25,7 +25,7 @@ public class Resources2D : IDisposable
     public int SpriteDataSsbo = GL.GenBuffer();
     public int LightDataSsbo = GL.GenBuffer();
 
-    public int LightLayerSize = 1024;
+    public static int LightLayerSize { get; private set; } = 1024;
     public int LightLayerCount = 16;
 
     private int ScreenWidth;

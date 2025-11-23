@@ -1,5 +1,6 @@
 using System.Text;
 using OpenTK.Audio.OpenAL;
+using Patchwork.FileSystem;
 namespace Patchwork.Audio.Objects;
 
 public sealed class AudioFile : IDisposable
@@ -56,7 +57,7 @@ public sealed class AudioFile : IDisposable
     }
     public static AudioFile FromWav(string path)
     {
-        using FileStream fs = File.OpenRead(path);
+        using FileStream fs = DriveMounts.FileStream(path);
         return FromWav(fs);
     }
 

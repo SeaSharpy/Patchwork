@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL4;
 using System.Runtime.InteropServices;
 using StbImageSharp;
+using Patchwork.FileSystem;
 
 namespace Patchwork.Render.Objects;
 
@@ -440,10 +441,10 @@ public static class TextureFactory
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("TextureFactory requires a non-empty image path.", "path");
-        if (!File.Exists(path))
+        if (!DriveMounts.FileExists(path))
             throw new FileNotFoundException("Image file not found.", path);
 
-        using FileStream fs = File.OpenRead(path);
+        using FileStream fs = DriveMounts.FileStream(path);
         Texture result = BuildFromStream(fs, options);
         fs.Dispose();
         return result;

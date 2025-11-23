@@ -3,6 +3,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Graphics.OpenGL4;
 using Monitor = OpenTK.Windowing.GraphicsLibraryFramework.Monitor;
+using Patchwork.FileSystem;
+using System.Diagnostics;
 namespace Patchwork;
 
 public class Engine : GameWindow
@@ -14,31 +16,54 @@ public class Engine : GameWindow
     public float DeltaTime { get; private set; }
     public float Time => (float)TimeDouble;
     public Box Viewport { get; private set; }
-    public IRenderSystem Renderer = null!;
+    public IRenderSystem? Renderer = null;
     private double TimeDouble = 0;
     private bool OnTop = false;
     public event Action? PostRender;
+    private Task? LoadTask;
+    private volatile bool IsEngineLoaded;
+    private volatile Exception? LoadException;
+    public int LoadingState = 0;
     public Engine(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, bool onTop = false) : base(gameWindowSettings, nativeWindowSettings)
     {
         OnTop = onTop;
     }
+    Stopwatch Stopwatch = new();
     protected override void OnLoad()
     {
+        Stopwatch.Start();
         Console.WriteLine("Loading...");
         if (InstanceInternal != null)
             throw new InvalidOperationException("Engine already initialized.");
         InstanceInternal = this;
         base.OnLoad();
         Init(this);
-        ECS = new();
-        Camera = new("Camera", [], "Camera");
-        IncludedFiles.Init();
-        UIRenderer.Init();
-        AudioPlayer.Init();
-        Entrypoint.Init();
-        Renderer = Entrypoint.Renderer();
-        OnResize(new ResizeEventArgs());
+        LoadTask = Task.Run(() => InitializeEngineBackground());
     }
+    private void InitializeEngineBackground()
+    {
+        try
+        {
+            DriveMounts.Mount("C", new PhysicalFileSystem("."));
+            DriveMounts.Mount("A", new ZipFileSystem(Path.Combine(AppContext.BaseDirectory, "Assets.zip")));
+            ECS = new();
+            Camera = new("Camera", [], "Camera");
+            IncludedFiles.Init();
+            AudioPlayer.Init();
+
+            Stopwatch.Stop();
+            Console.WriteLine($"Loading part one took {Stopwatch.ElapsedMilliseconds}ms.");
+            Stopwatch.Restart();
+            Interlocked.Increment(ref LoadingState);
+        }
+        catch (Exception ex)
+        {
+            LoadException = ex;
+            Console.WriteLine("Engine load failed: " + ex);
+
+        }
+    }
+
     private ButtonState GetButtonState(MouseButton button)
     {
         if (MouseState.IsButtonPressed(button))
@@ -53,9 +78,8 @@ public class Engine : GameWindow
     {
         base.OnUpdateFrame(args);
         DeltaTime = (float)args.Time;
-        TimeDouble += DeltaTime; 
+        TimeDouble += DeltaTime;
         InputState.Update(MouseState.Position, MouseState.PreviousPosition, MouseState.Delta, GetButtonState(MouseButton.Left), GetButtonState(MouseButton.Right), GetButtonState(MouseButton.Middle), GetButtonState(MouseButton.Button4), GetButtonState(MouseButton.Button5), MouseState.Scroll, MouseState.PreviousScroll, MouseState.ScrollDelta, KeyboardState);
-        ECS.Update();
         if (OnTop)
         {
             try
@@ -71,7 +95,16 @@ public class Engine : GameWindow
             catch { }
         }
         if ((KeyboardState.IsKeyDown(Keys.LeftAlt) || KeyboardState.IsKeyDown(Keys.RightAlt)) && (KeyboardState.IsKeyDown(Keys.LeftShift) || KeyboardState.IsKeyDown(Keys.RightShift)) && (KeyboardState.IsKeyDown(Keys.LeftControl) || KeyboardState.IsKeyDown(Keys.RightControl)))
-            Close();
+            Close(); 
+        if (LoadingState == 2) ECS.Update();
+        if (LoadingState == 1)
+        {
+            UIRenderer.Init();
+            Entrypoint.Init();
+            Stopwatch.Stop();
+            Console.WriteLine($"Loading part two took {Stopwatch.ElapsedMilliseconds}ms.");
+            Interlocked.Increment(ref LoadingState);
+        }
     }
     protected override void OnResize(ResizeEventArgs args)
     {
@@ -88,9 +121,23 @@ public class Engine : GameWindow
     {
         base.OnRenderFrame(args);
         GL.Viewport((int)Viewport.X, (int)Viewport.Y, (int)Viewport.Width, (int)Viewport.Height);
-        ECS.Render();
-        PostRender?.Invoke();
-        UIRenderer.Flush();
+        if (LoadingState == 2)
+        {
+            if (Renderer == null)
+            {
+                Renderer = Entrypoint.Renderer();
+            }
+            ECS.Render();
+            PostRender?.Invoke();
+            UIRenderer.Flush();
+        }
+        else
+        {
+            double darken = 1 / (TimeDouble + 1);
+            float opposite = (float)(1 - darken);
+            GL.ClearColor(opposite, opposite, opposite, 1);
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+        }
         SwapBuffers();
     }
     protected override void OnUnload()
@@ -226,7 +273,7 @@ public static class Helper
     }
     public static IRenderSystem Renderer
     {
-        get => Instance.Renderer;
+        get => Instance.Renderer!;
         set => Instance.Renderer = value;
     }
 }
