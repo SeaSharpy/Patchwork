@@ -2,6 +2,6 @@ Assets/**
 Game/**
 bin/**
 obj/**
-font.py
-ComicMono.ttf
+*.py
+*.ttf
 *.sln
