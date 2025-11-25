@@ -21,14 +21,10 @@ public partial class Program
             GameClient client = new GameClient();
             client.PacketReceived += (packetType, reader) =>
             {
-                // read payload based on packetType
+                
             };
 
-            await client.ConnectAsync("127.0.0.1", 4000, "Walt");
-            await client.SendAsync(1, writer =>
-            {
-                writer.Write("hello server");
-            });
+            client.Connect("127.0.0.1", 4000, "Walt");
             try
             {
                 WriteLine("Engine nowindow-load.");

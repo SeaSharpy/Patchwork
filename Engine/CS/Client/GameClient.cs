@@ -1,83 +1,198 @@
-
+using System;
+using System.IO;
 using System.Net.Sockets;
-namespace Patchwork;
+using System.Text;
+
 public class GameClient
 {
     public event Action<uint, BinaryReader>? PacketReceived;
 
-    private TcpClient TcpClient;
+    private const uint AuthPacketType = 0;
+
+    private TcpClient Client;
     private NetworkStream Stream;
     private string PlayerName;
 
-    public async Task ConnectAsync(string host, int port, string playerName)
+    private readonly object SendLock = new();
+    private CancellationTokenSource? ReceiveCts;
+    private Task? ReceiveTask;
+
+    public bool Connected => Client != null && Client.Connected;
+
+    // Sync connect
+    public void Connect(string host, int port, string playerName)
     {
         PlayerName = playerName;
-        TcpClient = new TcpClient();
-        await TcpClient.ConnectAsync(host, port);
-        Stream = TcpClient.GetStream();
 
-        // Send auth packet (type 0, payload: player name)
-        await SendAsync(0, writer =>
+        Client = new TcpClient();
+        Client.Connect(host, port);
+        Stream = Client.GetStream();
+
+        // auth packet
+        Send(AuthPacketType, writer =>
         {
             writer.Write(PlayerName);
         });
 
-        _ = ReadLoopAsync();
+        StartReceiveLoop();
     }
 
-    private async Task ReadLoopAsync()
+    // Async connect
+    public async Task ConnectAsync(string host, int port, string playerName)
     {
-        byte[] headerBuffer = new byte[8];
+        PlayerName = playerName;
+
+        Client = new TcpClient();
+        await Client.ConnectAsync(host, port);
+        Stream = Client.GetStream();
+
+        // auth packet
+        await SendAsync(AuthPacketType, writer =>
+        {
+            writer.Write(PlayerName);
+        });
+
+        StartReceiveLoop();
+    }
+
+    public void Disconnect()
+    {
+        ReceiveCts?.Cancel();
 
         try
         {
-            while (true)
-            {
-                await Stream.ReadExactlyAsync(headerBuffer, 8);
-                uint packetType = BitConverter.ToUInt32(headerBuffer, 0);
-                int length = BitConverter.ToInt32(headerBuffer, 4);
-
-                if (length < 0)
-                    throw new InvalidDataException("Negative packet length.");
-
-                byte[] payload = new byte[length];
-                if (length > 0)
-                    await Stream.ReadExactlyAsync(payload, length);
-
-                if (PacketReceived != null)
-                {
-                    MemoryStream ms = new MemoryStream(payload, writable: false);
-                    BinaryReader reader = new BinaryReader(ms);
-                    PacketReceived.Invoke(packetType, reader);
-                }
-            }
+            Stream?.Close();
+            Client?.Close();
         }
         catch
         {
-            TcpClient.Close();
         }
     }
 
-    public async Task SendAsync(uint packetType, Action<BinaryWriter> writePayload)
+    // Sync send
+    public void Send(uint packetType, Action<BinaryWriter> writePayload)
     {
-        if (TcpClient == null || !TcpClient.Connected)
-            return;
+        if (!Connected) return;
 
-        using MemoryStream ms = new MemoryStream();
-        using (BinaryWriter writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+        byte[] payload;
+        using (MemoryStream ms = new MemoryStream())
         {
-            writePayload(writer);
+            using (BinaryWriter writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+            {
+                writePayload(writer);
+            }
+
+            payload = ms.ToArray();
         }
 
-        byte[] payload = ms.ToArray();
+        byte[] header = new byte[8];
         int length = payload.Length;
 
-        byte[] header = new byte[8];
         Buffer.BlockCopy(BitConverter.GetBytes(packetType), 0, header, 0, 4);
         Buffer.BlockCopy(BitConverter.GetBytes(length), 0, header, 4, 4);
 
-        await Stream.WriteAsync(header, 0, header.Length);
-        if (length > 0)
-            await Stream.WriteAsync(payload, 0, length);
+        lock (SendLock)
+        {
+            Stream.Write(header, 0, header.Length);
+            if (length > 0)
+                Stream.Write(payload, 0, length);
+        }
+    }
+
+    // Async send
+    public async Task SendAsync(uint packetType, Action<BinaryWriter> writePayload)
+    {
+        if (!Connected) return;
+
+        byte[] payload;
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
+            {
+                writePayload(writer);
+            }
+
+            payload = ms.ToArray();
+        }
+
+        byte[] header = new byte[8];
+        int length = payload.Length;
+
+        Buffer.BlockCopy(BitConverter.GetBytes(packetType), 0, header, 0, 4);
+        Buffer.BlockCopy(BitConverter.GetBytes(length), 0, header, 4, 4);
+
+        lock (SendLock)
+        {
+            Stream.Write(header, 0, header.Length);
+            if (length > 0)
+                Stream.Write(payload, 0, length);
+        }
+
+        // If you really want the write itself to be async instead of sync-under-lock,
+        // you can replace the body with an async lock or a dedicated send loop later.
+    }
+
+    private void StartReceiveLoop()
+    {
+        ReceiveCts?.Cancel();
+        ReceiveCts = new CancellationTokenSource();
+        CancellationToken token = ReceiveCts.Token;
+
+        ReceiveTask = Task.Run(async () =>
+        {
+            byte[] headerBuffer = new byte[8];
+
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    await ReadExactlyAsync(Stream, headerBuffer, 8, token);
+
+                    uint packetType = BitConverter.ToUInt32(headerBuffer, 0);
+                    int length = BitConverter.ToInt32(headerBuffer, 4);
+
+                    if (length < 0)
+                        throw new InvalidDataException("Negative packet length.");
+
+                    byte[] payload = new byte[length];
+                    if (length > 0)
+                        await ReadExactlyAsync(Stream, payload, length, token);
+
+                    if (PacketReceived != null)
+                    {
+                        using MemoryStream ms = new MemoryStream(payload, writable: false);
+                        using BinaryReader reader = new BinaryReader(ms, Encoding.UTF8);
+                        PacketReceived.Invoke(packetType, reader);
+                    }
+                }
+            }
+            catch
+            {
+                // disconnected or cancelled
+                try
+                {
+                    Client.Close();
+                }
+                catch
+                {
+                }
+            }
+        }, token);
+    }
+
+    private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int length, CancellationToken token)
+    {
+        int offset = 0;
+        int remaining = length;
+
+        while (remaining > 0)
+        {
+            int read = await stream.ReadAsync(buffer, offset, remaining, token);
+            if (read <= 0)
+                throw new IOException("Remote closed connection.");
+
+            offset += read;
+            remaining -= read;
+        }
     }
 }

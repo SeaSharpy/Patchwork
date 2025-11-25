@@ -1,7 +1,7 @@
 using System.Diagnostics;
 public partial class Program
 {
-    public static void Main()
+    public static async Task Main()
     {
         try
         {
@@ -11,7 +11,7 @@ public partial class Program
             GameServer server = new();
             server.PacketReceived += (playerName, packetType, reader) =>
             {
-                if (packetType == 0)
+                if (packetType == 1)
                 {
                     string log = reader.ReadString();
                     WriteLine(log);

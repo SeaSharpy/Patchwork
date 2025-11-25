@@ -14,12 +14,10 @@
 
   <PropertyGroup Condition="'$(Headless)' == 'true'">
     <DefineConstants>$(DefineConstants);HEADLESS</DefineConstants>
-    <OutputPath>$(MSBuildProjectDirectory)\Executables\Server\</OutputPath>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Headless)' == 'false'">
-    <OutputPath>$(MSBuildProjectDirectory)\Executables\Client\</OutputPath>
     <OutputType>WinExe</OutputType>
   </PropertyGroup>
   
@@ -31,10 +29,13 @@
     <Compile Include="Engine\CS\Server\**\*.cs" Condition="'$(Headless)' == 'true'" />
   </ItemGroup>
 
-  <Target Name="BuildAll">
+  <Target Name="BuildServer">
     <MSBuild Projects="$(MSBuildProjectFullPath)"
              Targets="Restore;Publish"
              Properties="Configuration=Release;Headless=true;PublishDir=$(MSBuildProjectDirectory)\Executables\Server\" />
+  </Target>
+
+  <Target Name="BuildClient">
     <MSBuild Projects="$(MSBuildProjectFullPath)"
              Targets="Restore;Publish"
              Properties="Configuration=Release;Headless=false;PublishDir=$(MSBuildProjectDirectory)\Executables\Client\" />
