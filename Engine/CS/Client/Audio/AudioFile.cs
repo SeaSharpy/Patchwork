@@ -1,7 +1,6 @@
 using System.Text;
-using OpenTK.Audio.OpenAL;
 using Patchwork.FileSystem;
-namespace Patchwork.Audio.Objects;
+namespace Patchwork.Client.Audio;
 
 public sealed class AudioFile : IDisposable
 {
@@ -11,8 +10,6 @@ public sealed class AudioFile : IDisposable
 
     public int Channels => Stereo ? 2 : 1;
     public int Frames => Samples.Length / Channels;
-    public byte[] Pcm16 { get; }
-    public int Buffer { get; private set; }
     public AudioFile(float[] samples, int sampleRate, bool stereo)
     {
         if (samples == null) throw new ArgumentNullException("samples", "AudioFile requires a valid samples buffer.");
@@ -24,36 +21,6 @@ public sealed class AudioFile : IDisposable
         Samples = samples;
         SampleRate = sampleRate;
         Stereo = stereo;
-        Pcm16 = ToPcm16(out ALFormat format);
-        Buffer = AL.GenBuffer();
-        AL.BufferData(Buffer, format, Pcm16, sampleRate);
-    }
-
-    private byte[] ToPcm16(out ALFormat format)
-    {
-        format = Channels switch
-        {
-            1 => ALFormat.Mono16,
-            2 => ALFormat.Stereo16,
-            _ => throw new NotSupportedException("Only mono/stereo supported.")
-        };
-
-        int sampleCount = Samples.Length;
-        byte[] bytes = new byte[sampleCount * sizeof(short)];
-
-        int bi = 0;
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float f = Samples[i];
-            if (f > 1f) f = 1f;
-            else if (f < -1f) f = -1f;
-
-            short s = (short)MathF.Round(f * 32767f);
-            bytes[bi++] = (byte)(s & 0xFF);
-            bytes[bi++] = (byte)((s >> 8) & 0xFF);
-        }
-
-        return bytes;
     }
     public static AudioFile FromWav(string path)
     {
@@ -217,10 +184,6 @@ public sealed class AudioFile : IDisposable
     }
     public void Dispose()
     {
-        if (Buffer != 0)
-        {
-            AL.DeleteBuffer(Buffer);
-            Buffer = 0;
-        }
+        
     }
 }
