@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
+
 namespace Patchwork;
-public class GameServer
+
+public static class GameServer
 {
-    public event Action<string, uint, BinaryReader>? PacketReceived;
+    public static event Action<string, uint, BinaryReader>? PacketReceived;
 
     private class ClientConnection
     {
@@ -18,35 +20,58 @@ public class GameServer
         }
     }
 
-    private TcpListener Listener;
-    private readonly List<ClientConnection> Clients = new();
-    private readonly Dictionary<string, ClientConnection> ClientsByName = new();
+    private static TcpListener? Listener;
+    private static readonly List<ClientConnection> Clients = new();
+    private static readonly Dictionary<string, ClientConnection> ClientsByName = new();
+    private static CancellationTokenSource? CancellationSource;
 
-    public async Task StartAsync(int port)
+    public static async Task StartAsync(int port)
     {
+        CancellationSource?.Cancel();
+        CancellationSource?.Dispose();
+        CancellationSource = new CancellationTokenSource();
+        CancellationToken token = CancellationSource.Token;
+
         Listener = new TcpListener(IPAddress.Any, port);
         Listener.Start();
 
-        while (true)
+        try
         {
-            TcpClient tcpClient = await Listener.AcceptTcpClientAsync();
-            ClientConnection connection = new ClientConnection(tcpClient);
+            while (!token.IsCancellationRequested)
+            {
+                TcpClient tcpClient;
+                try
+                {
+                    tcpClient = await Listener.AcceptTcpClientAsync(token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
 
-            lock (Clients)
-                Clients.Add(connection);
+                ClientConnection connection = new ClientConnection(tcpClient);
 
-            _ = HandleClientAsync(connection);
+                lock (Clients)
+                    Clients.Add(connection);
+
+                _ = HandleClientAsync(connection, token);
+            }
+        }
+        finally
+        {
+            Listener.Stop();
+            Listener = null;
         }
     }
 
-    private async Task HandleClientAsync(ClientConnection connection)
+    private static async Task HandleClientAsync(ClientConnection connection, CancellationToken token)
     {
         NetworkStream stream = connection.Stream;
-        byte[] headerBuffer = new byte[8]; // 4 bytes type, 4 bytes length
+        byte[] headerBuffer = new byte[8];
 
         try
         {
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 await stream.ReadExactlyAsync(headerBuffer, 8);
                 uint packetType = BitConverter.ToUInt32(headerBuffer, 0);
@@ -59,10 +84,9 @@ public class GameServer
                 if (length > 0)
                     await stream.ReadExactlyAsync(payload, length);
 
-                // Auth handling
                 if (connection.PlayerName == null)
                 {
-                    if (packetType != 0)
+                    if (packetType != (uint)PacketType.Auth)
                         throw new InvalidDataException("First packet from client must be auth (type 0).");
 
                     using MemoryStream ms = new MemoryStream(payload, writable: false);
@@ -78,23 +102,19 @@ public class GameServer
                         ClientsByName[playerName] = connection;
                     }
 
-                    // No PacketReceived event for auth by default
                     continue;
                 }
 
-                // Normal packets
                 if (PacketReceived != null)
                 {
                     MemoryStream ms = new MemoryStream(payload, writable: false);
                     BinaryReader reader = new BinaryReader(ms);
                     PacketReceived.Invoke(connection.PlayerName, packetType, reader);
-                    // reader/ms will be cleaned up by GC; caller must finish inside callback
                 }
             }
         }
         catch
         {
-            // Disconnect cleanup
             lock (Clients)
                 Clients.Remove(connection);
 
@@ -108,9 +128,9 @@ public class GameServer
         }
     }
 
-    public async Task SendAsync(string playerName, uint packetType, Action<BinaryWriter> writePayload)
+    public static async Task SendAsync(string playerName, uint packetType, Action<BinaryWriter> writePayload)
     {
-        ClientConnection connection;
+        ClientConnection? connection;
         lock (ClientsByName)
         {
             if (!ClientsByName.TryGetValue(playerName, out connection))
@@ -127,7 +147,12 @@ public class GameServer
         await SendRawAsync(connection, packetType, payload);
     }
 
-    private async Task SendRawAsync(ClientConnection connection, uint packetType, byte[] payload)
+    public static void Send(string playerName, uint packetType, Action<BinaryWriter> writePayload)
+    {
+        SendAsync(playerName, packetType, writePayload).GetAwaiter().GetResult();
+    }
+
+    private static async Task SendRawAsync(ClientConnection connection, uint packetType, byte[] payload)
     {
         if (!connection.TcpClient.Connected)
             return;
@@ -142,5 +167,69 @@ public class GameServer
         await stream.WriteAsync(header, 0, header.Length);
         if (length > 0)
             await stream.WriteAsync(payload, 0, length);
+    }
+
+    public static async Task SendToAllAsync(uint packetType, Action<BinaryWriter> writePayload)
+    {
+        byte[] payload;
+        using (MemoryStream ms = new MemoryStream())
+        {
+            using (BinaryWriter writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+            {
+                writePayload(writer);
+            }
+
+            payload = ms.ToArray();
+        }
+
+        List<ClientConnection> targets;
+        lock (Clients)
+        {
+            targets = new List<ClientConnection>(Clients.Count);
+            foreach (ClientConnection client in Clients)
+            {
+                if (client.TcpClient.Connected && client.PlayerName != null)
+                    targets.Add(client);
+            }
+        }
+
+        List<Task> sendTasks = new List<Task>(targets.Count);
+        foreach (ClientConnection connection in targets)
+        {
+            sendTasks.Add(SendRawAsync(connection, packetType, payload));
+        }
+
+        await Task.WhenAll(sendTasks);
+    }
+
+    public static void SendToAll(uint packetType, Action<BinaryWriter> writePayload)
+    {
+        SendToAllAsync(packetType, writePayload).GetAwaiter().GetResult();
+    }
+
+    public static void Dispose()
+    {
+        CancellationSource?.Cancel();
+
+        lock (Clients)
+        {
+            foreach (ClientConnection client in Clients)
+            {
+                client.TcpClient.Close();
+            }
+
+            Clients.Clear();
+        }
+
+        lock (ClientsByName)
+        {
+            ClientsByName.Clear();
+        }
+
+        Listener?.Stop();
+        Listener = null;
+
+        CancellationSource?.Dispose();
+        CancellationSource = null;
     }
 }

@@ -8,16 +8,7 @@ public partial class Program
             Engine engine = new();
             Console.TreatControlCAsInput = true;
             WriteLine("Starting server.");
-            GameServer server = new();
-            server.PacketReceived += (playerName, packetType, reader) =>
-            {
-                if (packetType == 1)
-                {
-                    string log = reader.ReadString();
-                    WriteLine(log);
-                }
-            };
-            _ = server.StartAsync(4000);
+            _ = GameServer.StartAsync(4000);
             try
             {
                 WriteLine("Engine nowindow-load.");
@@ -73,6 +64,7 @@ public partial class Program
                 WriteLine("Engine nowindow-unload failed: " + ex);
                 throw new Engine.BubbleException();
             }
+            GameServer.Dispose();
         }
         catch (Engine.BubbleException)
         {

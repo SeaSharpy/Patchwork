@@ -1,80 +1,27 @@
-using System.Diagnostics;
+using System.Numerics;
 namespace Patchwork;
 
 public partial class Engine
 {
     public float DeltaTime { get; private set; }
     public float Time => (float)TimeDouble;
-    private double TimeDouble = 0;    public bool Loaded = false;
-    public int LoadingError = 0;
-    public int LoadedAsync = 0;
-    public bool Headless { get; init; } = false;
-    public Engine()
-    {
-    }
+    private double TimeDouble = 0;
     public void NoWindowLoad()
     {
         DriveMounts.Mount("C", new PhysicalFileSystem("."));
         Helper.Init(this);
-    }
-    private void LoadHeadlessAsync()
-    {
-        try
-        {
-            Stopwatch stopwatch = new();
-            stopwatch.Start();
-            IncludedFiles.Init();
-
-            stopwatch.Stop();
-            WriteLine($"Loading async head took {stopwatch.ElapsedMilliseconds}ms.");
-            Interlocked.Increment(ref LoadedAsync);
-        }
-        catch (Exception ex)
-        {
-            WriteLine("Engine load failed: " + ex);
-            Interlocked.And(ref LoadingError, 1);
-        }
-    }
-    private void LoadHeadAsync()
-    {
-        try
-        {
-
-            Stopwatch stopwatch = new();
-            stopwatch.Start();
-
-            stopwatch.Stop();
-            WriteLine($"Loading async headless took {stopwatch.ElapsedMilliseconds}ms.");
-            Interlocked.Increment(ref LoadedAsync);
-        }
-        catch (Exception ex)
-        {
-            WriteLine("Engine load failed: " + ex);
-            Interlocked.And(ref LoadingError, 1);
-        }
+        WriteLine("Test");
+        TestEntity entity = (TestEntity)Entity.Create(typeof(TestEntity));
+        entity.Name = "Test";
+        entity.Position = new Vector3(0, 0, 0);
+        entity.Connections = [];
     }
     public void Update(double dt)
     {
-        if (LoadingError == 1) Close();
         DeltaTime = (float)dt;
-        TimeDouble += DeltaTime;
-        if (Loaded) Entity.TickAll();
-        else if (LoadedAsync == 2)
-        {
-            Stopwatch stopwatch = new();
-            if (!Headless)
-            {
-                
-            }
-            stopwatch.Stop();
-            WriteLine($"Loading sync took {stopwatch.ElapsedMilliseconds}ms.");
-            Loaded = true;
-        }
-    }
-    public void Render()
-    {
-
-    }
+        TimeDouble += dt;
+        Entity.TickAll();
+    }    
     public void NoWindowUnload()
     {
         DriveMounts.Dispose();

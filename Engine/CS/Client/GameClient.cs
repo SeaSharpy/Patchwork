@@ -2,25 +2,26 @@ using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
-public class GameClient
+public static class GameClient
 {
-    public event Action<uint, BinaryReader>? PacketReceived;
+    public static event Action<uint, BinaryReader>? PacketReceived;
 
     private const uint AuthPacketType = 0;
 
-    private TcpClient Client;
-    private NetworkStream Stream;
-    private string PlayerName;
+    private static TcpClient? Client;
+    private static NetworkStream? Stream;
+    private static string? PlayerName;
 
-    private readonly object SendLock = new();
-    private CancellationTokenSource? ReceiveCts;
-    private Task? ReceiveTask;
+    private static readonly object SendLock = new();
+    private static CancellationTokenSource? ReceiveCts;
+    private static Task? ReceiveTask;
 
-    public bool Connected => Client != null && Client.Connected;
+    public static bool Connected => Client != null && Client.Connected;
 
-    // Sync connect
-    public void Connect(string host, int port, string playerName)
+    public static void Connect(string host, int port, string playerName)
     {
         PlayerName = playerName;
 
@@ -28,7 +29,6 @@ public class GameClient
         Client.Connect(host, port);
         Stream = Client.GetStream();
 
-        // auth packet
         Send(AuthPacketType, writer =>
         {
             writer.Write(PlayerName);
@@ -37,8 +37,7 @@ public class GameClient
         StartReceiveLoop();
     }
 
-    // Async connect
-    public async Task ConnectAsync(string host, int port, string playerName)
+    public static async Task ConnectAsync(string host, int port, string playerName)
     {
         PlayerName = playerName;
 
@@ -46,7 +45,6 @@ public class GameClient
         await Client.ConnectAsync(host, port);
         Stream = Client.GetStream();
 
-        // auth packet
         await SendAsync(AuthPacketType, writer =>
         {
             writer.Write(PlayerName);
@@ -55,7 +53,7 @@ public class GameClient
         StartReceiveLoop();
     }
 
-    public void Disconnect()
+    public static void Disconnect()
     {
         ReceiveCts?.Cancel();
 
@@ -69,10 +67,9 @@ public class GameClient
         }
     }
 
-    // Sync send
-    public void Send(uint packetType, Action<BinaryWriter> writePayload)
+    public static void Send(uint packetType, Action<BinaryWriter> writePayload)
     {
-        if (!Connected) return;
+        if (!Connected || Stream == null) return;
 
         byte[] payload;
         using (MemoryStream ms = new MemoryStream())
@@ -99,10 +96,9 @@ public class GameClient
         }
     }
 
-    // Async send
-    public async Task SendAsync(uint packetType, Action<BinaryWriter> writePayload)
+    public static async Task SendAsync(uint packetType, Action<BinaryWriter> writePayload)
     {
-        if (!Connected) return;
+        if (!Connected || Stream == null) return;
 
         byte[] payload;
         using (MemoryStream ms = new MemoryStream())
@@ -127,13 +123,12 @@ public class GameClient
             if (length > 0)
                 Stream.Write(payload, 0, length);
         }
-
-        // If you really want the write itself to be async instead of sync-under-lock,
-        // you can replace the body with an async lock or a dedicated send loop later.
     }
 
-    private void StartReceiveLoop()
+    private static void StartReceiveLoop()
     {
+        if (Stream == null || Client == null) return;
+
         ReceiveCts?.Cancel();
         ReceiveCts = new CancellationTokenSource();
         CancellationToken token = ReceiveCts.Token;
@@ -168,7 +163,6 @@ public class GameClient
             }
             catch
             {
-                // disconnected or cancelled
                 try
                 {
                     Client.Close();

@@ -18,13 +18,6 @@ public partial class Program
                 Flags = ContextFlags.ForwardCompatible
             };
             WriteLine("Starting client.");
-            GameClient client = new GameClient();
-            client.PacketReceived += (packetType, reader) =>
-            {
-                
-            };
-
-            client.Connect("127.0.0.1", 4000, "Walt");
             try
             {
                 WriteLine("Engine nowindow-load.");
@@ -59,8 +52,8 @@ public partial class Program
                     lastTicks = currentTicks;
 
                     double deltaTime = deltaTicks * tickFrequency;
-
                     window.ProcessEvents(0);
+                    window.Title = "FPS: " + (int)(1.0 / deltaTime);
                     try
                     {
                         engine.Update(deltaTime);

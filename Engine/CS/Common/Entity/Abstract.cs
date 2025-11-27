@@ -7,4 +7,5 @@ public abstract partial class Entity : IDisposable
     public abstract void Input(string name);
     public abstract void Server();
     public abstract void Client();
+    public abstract float SyncInterval { get; }
 }

@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Reflection;
-using System.Collections.Concurrent;
 namespace Patchwork;
 
 public interface IModel
@@ -64,29 +63,51 @@ public static class SerializationRegistry
     }
 }
 
-public static class EntitySerializer
+public static class Serializer
 {
-    public static void Serialize(BinaryWriter writer, ISerializable obj, bool save = true)
+    public static void Serialize(BinaryWriter writer, ISerializable obj, bool save = true, List<string>? enabled = null)
     {
         Type type = obj.GetType();
         Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
 
         writer.Write(type.AssemblyQualifiedName ?? throw new InvalidDataException($"Type {type.Name} doesn't have a full name for some fucking reason."));
+
         int actualCount = 0;
         foreach (KeyValuePair<string, SerializedMember> m in members)
-            if (!save || m.Value.Save)
-                actualCount++;
-        writer.Write(actualCount);
-        foreach (KeyValuePair<string, SerializedMember> member in members)
         {
-            if (save && !member.Value.Save) continue;
-            writer.Write(member.Key);
+            string name = m.Key;
+            SerializedMember member = m.Value;
+
+            if (enabled != null && !enabled.Contains(name))
+                continue;
+            if (save && !member.Save)
+                continue;
+
+            actualCount++;
+        }
+
+        writer.Write(actualCount);
+
+        foreach (KeyValuePair<string, SerializedMember> pair in members)
+        {
+            string name = pair.Key;
+            SerializedMember member = pair.Value;
+
+            if (enabled != null && !enabled.Contains(name))
+                continue;
+
+            if (save && !member.Save)
+                continue;
+
+            writer.Write(name);
+
             object? value = null;
-            if (member.Value.Member is PropertyInfo property)
+            if (member.Member is PropertyInfo property)
                 value = property.GetValue(obj);
-            else if (member.Value.Member is FieldInfo field)
+            else if (member.Member is FieldInfo field)
                 value = field.GetValue(obj);
-            WriteValue(writer, member.Value.Type, value, save);
+
+            WriteValue(writer, member.Type, value, save);
         }
     }
 
@@ -111,6 +132,27 @@ public static class EntitySerializer
                 field.SetValue(obj, value);
         }
         return obj;
+    }
+
+    public static void Deserialize(BinaryReader reader, ISerializable obj)
+    {
+        string typeName = reader.ReadString();
+        Type type = Type.GetType(typeName) ?? throw new InvalidDataException($"Type {typeName} not found.");
+        if (type != obj.GetType()) throw new InvalidDataException($"Type {typeName} does not match object type.");
+        if (!type.IsAssignableTo(typeof(ISerializable))) throw new InvalidDataException($"Type {typeName} is not serializable.");
+        int memberCount = reader.ReadInt32();
+        Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
+        for (int i = 0; i < memberCount; i++)
+        {
+            string memberName = reader.ReadString();
+            if (!members.TryGetValue(memberName, out SerializedMember serializedMember)) throw new InvalidDataException($"Member {memberName} not found.");
+            Type memberType = serializedMember.Type;
+            object? value = ReadValue(reader, memberType);
+            if (serializedMember.Member is PropertyInfo property)
+                property.SetValue(obj, value);
+            else if (serializedMember.Member is FieldInfo field)
+                field.SetValue(obj, value);
+        }
     }
 
     private static void WriteValue(BinaryWriter writer, Type type, object? value, bool save = true)
@@ -146,6 +188,30 @@ public static class EntitySerializer
         if (type == typeof(string))
         {
             writer.Write(value as string ?? string.Empty);
+            return;
+        }
+        if (type == typeof(Vector2))
+        {
+            Vector2 v = value is Vector2 vv ? vv : default;
+            writer.Write(v.X);
+            writer.Write(v.Y);
+            return;
+        }
+        if (type == typeof(Vector3))
+        {
+            Vector3 v = value is Vector3 vv ? vv : default;
+            writer.Write(v.X);
+            writer.Write(v.Y);
+            writer.Write(v.Z);
+            return;
+        }
+        if (type == typeof(Vector4))
+        {
+            Vector4 v = value is Vector4 vv ? vv : default;
+            writer.Write(v.X);
+            writer.Write(v.Y);
+            writer.Write(v.Z);
+            writer.Write(v.W);
             return;
         }
 
@@ -192,6 +258,12 @@ public static class EntitySerializer
             return reader.ReadBoolean();
         if (type == typeof(string))
             return reader.ReadString();
+        if (type == typeof(Vector2))
+            return new Vector2(reader.ReadSingle(), reader.ReadSingle());
+        if (type == typeof(Vector3))
+            return new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        if (type == typeof(Vector4))
+            return new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 
         if (type.IsArray)
         {

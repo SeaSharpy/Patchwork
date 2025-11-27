@@ -8,16 +8,20 @@ public abstract partial class Entity : IDisposable
     public bool Disposing { get; private set; }
     public float DisposeTimer { get; private set; }
     public void Kill() => Dead = true;
+
+    protected Entity()
+    {
+        ID = GetID();
+    }
     public void Dispose()
     {
         Kill();
         if (Disposed) return;
         Disposed = true;
         Disposing = false;
-
+        DisposeExtras();
         lock (Entities)
-            if (Entities.Remove(ID))
-                FreeIds.Push(ID);
+            Entities.Remove(ID);
     }
     public void DisposeIn(float time)
     {
@@ -26,9 +30,8 @@ public abstract partial class Entity : IDisposable
         Disposing = true;
         DisposeTimer = time;
     }
-    protected Entity()
+    private void AddToEntities()
     {
-        ID = GetID();
         lock (Entities)
             Entities.Add(ID, this);
     }
