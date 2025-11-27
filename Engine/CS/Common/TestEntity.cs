@@ -1,13 +1,12 @@
 using System.Numerics;
 public class TestEntity : Entity
 {
-    public override IEnumerable<string> Inputs => new[] { "test" };
-    public override IEnumerable<string> Outputs => new[] { "test" };
-    public override float SyncInterval => 0.02f;
+    public override IEnumerable<string> Inputs => ["test"];
+    public override IEnumerable<string> Outputs => ["test"];
+    public override float SyncInterval => 0.1f;
     public override void Input(string name)
     {
-        if (name == "test")
-            WriteLine("Test input");
+        
     }
     public override void Server()
     {
@@ -15,5 +14,7 @@ public class TestEntity : Entity
     }
     public override void Client()
     {
+        WriteLine($"{Helper.DeltaTime}");
+        WriteLine($"{Position}");
     }
 }

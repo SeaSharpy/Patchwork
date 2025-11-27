@@ -6,11 +6,10 @@ public partial class Engine
     public float DeltaTime { get; private set; }
     public float Time => (float)TimeDouble;
     private double TimeDouble = 0;
-    public void NoWindowLoad()
+    public void CommonLoad()
     {
         DriveMounts.Mount("C", new PhysicalFileSystem("."));
         Helper.Init(this);
-        WriteLine("Test");
         TestEntity entity = (TestEntity)Entity.Create(typeof(TestEntity));
         entity.Name = "Test";
         entity.Position = new Vector3(0, 0, 0);
@@ -22,7 +21,7 @@ public partial class Engine
         TimeDouble += dt;
         Entity.TickAll();
     }    
-    public void NoWindowUnload()
+    public void CommonUnload()
     {
         DriveMounts.Dispose();
     }

@@ -3,6 +3,28 @@ namespace Patchwork;
 
 public abstract partial class Entity : IDisposable
 {
+    public static void SetupPackets()
+    {
+        GameServer.PacketReceived += (player, packetType, reader) =>
+        {
+            try
+            {
+                if (packetType == (uint)PacketType.EntityMessage)
+                {
+                    uint ID = reader.ReadUInt32();
+                    string name = reader.ReadString();
+                    Entity? entity = TryGetEntity(ID);
+                    if (entity == null) return;
+                    lock (entity)
+                    {
+                        entity.MessageRecieved(name, reader);
+                        entity.MessageRecievedServer(player, name, reader);
+                    }
+                }
+            }
+            catch (EndOfStreamException) { }
+        };
+        }
     public float SyncTimer = 0;
     public static void TickAll()
     {
@@ -47,7 +69,7 @@ public abstract partial class Entity : IDisposable
     {
         NextId = 0;
         FreeIds.Clear();
-        GameServer.SendToAll((uint)PacketType.Clear, (BinaryWriter writer) => { });
+        GameServer.SendToAll((uint)PacketType.Clear, (BinaryWriter writer) => { return true; });
     }
     private static readonly Stack<uint> FreeIds = new();
     private static uint NextId = 0;
@@ -79,28 +101,51 @@ public abstract partial class Entity : IDisposable
         }
         return payload;
     }
-    public static float SyncTimer;
     public static void SyncAll()
     {
         GameServer.SendToAll((uint)PacketType.Destroy, (BinaryWriter writer) =>
         {
             while (DisposedIDs.TryPop(out uint ID))
                 writer.Write(ID);
+            return true;
         });
         GameServer.SendToAll((uint)PacketType.Entity, (BinaryWriter writer) =>
         {
+            bool done = false;
             foreach (Entity entity in Entities.Values.ToArray())
-                entity.Sync(writer);
+                done |= entity.Sync(writer);
+            return done;
         });
     }
-    public void Sync(BinaryWriter writer)
+    public void MessagePlayer(string player, string name, Action<BinaryWriter> writePayload)
+    {
+        GameServer.Send(player, (uint)PacketType.EntityMessage, (BinaryWriter writer) =>
+        {
+            writer.Write(ID);
+            writer.Write(name);
+            writePayload(writer);
+            return true;
+        });
+    }
+    public void Message(string name, Action<BinaryWriter> writePayload)
+    {
+        GameServer.SendToAll((uint)PacketType.EntityMessage, (BinaryWriter writer) =>
+        {
+            writer.Write(ID);
+            writer.Write(name);
+            writePayload(writer);
+            return true;
+        });
+    }
+    public bool Sync(BinaryWriter writer)
     {
         SyncTimer -= Helper.DeltaTime;
-        if (SyncTimer > 0) return;
+        if (SyncTimer > 0) return false;
         SyncTimer = SyncInterval;
         List<string> payload = GetNetworkPayload();
-        if (payload.Count == 0) return;
+        if (payload.Count == 0) return false;
         writer.Write(ID);
         Serializer.Serialize(writer, this, false, payload);
+        return true;
     }
 }

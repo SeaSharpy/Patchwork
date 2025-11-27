@@ -39,11 +39,31 @@ public abstract partial class Entity : IDisposable
                 {
                     DisposeAll();
                 }
+                else if (packetType == (uint)PacketType.EntityMessage)
+                {
+                    uint ID = reader.ReadUInt32();
+                    string name = reader.ReadString();
+                    Entity? entity = TryGetEntity(ID);
+                    if (entity == null) return;
+                    lock (entity)
+                    {
+                        entity.MessageRecieved(name, reader);
+                        entity.MessageRecievedClient(name, reader);
+                    }
+                }
             }
             catch (EndOfStreamException) { }
         };
     }
-
+    public void Message(string name, Action<BinaryWriter> writePayload)
+    {
+        GameClient.Send((uint)PacketType.EntityMessage, (BinaryWriter writer) =>
+        {
+            writer.Write(ID);
+            writer.Write(name);
+            writePayload(writer);
+        });
+    }
     public void DisposeExtras()
     {
         FreeIds.Push(ID);

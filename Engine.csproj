@@ -17,8 +17,12 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Headless)' == 'false'">
-    <OutputType>WinExe</OutputType>
+  <PropertyGroup Condition="'$(Headless)' == 'false' AND '$(Configuration)' == 'Debug'">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Headless)' == 'false' AND '$(Configuration)' != 'Debug'">
+      <OutputType>WinExe</OutputType>
   </PropertyGroup>
   
   <ItemGroup>
@@ -32,10 +36,22 @@
   <Target Name="BuildServer">
     <MSBuild Projects="$(MSBuildProjectFullPath)"
              Targets="Restore;Publish"
-             Properties="Configuration=Release;Headless=true;PublishDir=$(MSBuildProjectDirectory)\Executables\Server\" />
+             Properties="Configuration=Debug;Headless=true;PublishDir=$(MSBuildProjectDirectory)\Executables\Server\" />
   </Target>
 
   <Target Name="BuildClient">
+    <MSBuild Projects="$(MSBuildProjectFullPath)"
+             Targets="Restore;Publish"
+             Properties="Configuration=Debug;Headless=false;PublishDir=$(MSBuildProjectDirectory)\Executables\Client\" />
+  </Target>
+
+  <Target Name="BuildServerR">
+    <MSBuild Projects="$(MSBuildProjectFullPath)"
+             Targets="Restore;Publish"
+             Properties="Configuration=Release;Headless=true;PublishDir=$(MSBuildProjectDirectory)\Executables\Server\" />
+  </Target>
+
+  <Target Name="BuildClientR">
     <MSBuild Projects="$(MSBuildProjectFullPath)"
              Targets="Restore;Publish"
              Properties="Configuration=Release;Headless=false;PublishDir=$(MSBuildProjectDirectory)\Executables\Client\" />

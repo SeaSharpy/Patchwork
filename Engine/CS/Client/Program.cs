@@ -20,12 +20,12 @@ public partial class Program
             WriteLine("Starting client.");
             try
             {
-                WriteLine("Engine nowindow-load.");
-                engine.NoWindowLoad();
+                WriteLine("Engine common-load.");
+                engine.CommonLoad();
             }
             catch (Exception ex)
             {
-                WriteLine("Engine nowindow-load failed: " + ex);
+                WriteLine("Engine common-load failed: " + ex);
                 goto ErrorB;
             }
             {
@@ -34,12 +34,12 @@ public partial class Program
                 window.Context.SwapInterval = 1;
                 try
                 {
-                    WriteLine("Engine window-load.");
-                    engine.WindowLoad();
+                    WriteLine("Engine client-load.");
+                    engine.ClientLoad();
                 }
                 catch (Exception ex)
                 {
-                    WriteLine("Engine window-load failed: " + ex);
+                    WriteLine("Engine client-load failed: " + ex);
                     goto ErrorA;
                 }
                 Stopwatch stopwatch = Stopwatch.StartNew();
@@ -73,24 +73,24 @@ public partial class Program
             ErrorA:;
                 try
                 {
-                    WriteLine("Engine window-unload.");
-                    engine.WindowUnload();
+                    WriteLine("Engine client-unload.");
+                    engine.ClientUnload();
                 }
                 catch (Exception ex)
                 {
-                    WriteLine("Engine window-unload failed: " + ex);
+                    WriteLine("Engine client-unload failed: " + ex);
                     throw new Engine.BubbleException();
                 }
             }
         ErrorB:;
             try
             {
-                WriteLine("Engine nowindow-unload.");
-                engine.NoWindowUnload();
+                WriteLine("Engine common-unload.");
+                engine.CommonUnload();
             }
             catch (Exception ex)
             {
-                WriteLine("Engine nowindow-unload failed: " + ex);
+                WriteLine("Engine common-unload failed: " + ex);
                 throw new Engine.BubbleException();
             }
         }

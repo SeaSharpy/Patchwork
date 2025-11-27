@@ -3,12 +3,13 @@ namespace Patchwork;
 
 public partial class Engine
 {
-    public void WindowLoad()
+    public void ClientLoad()
     {
         GameClient.Connect("127.0.0.1", 4000, "Walt");
+        DriveMounts.Mount("A", new HttpFileSystem("http://localhost:4001/"));
         Entity.SetupPackets();
     }
-    public void WindowUnload()
+    public void ClientUnload()
     {
     }
     public void Render()

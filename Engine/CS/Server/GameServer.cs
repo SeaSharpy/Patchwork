@@ -128,7 +128,7 @@ public static class GameServer
         }
     }
 
-    public static async Task SendAsync(string playerName, uint packetType, Action<BinaryWriter> writePayload)
+    public static async Task SendAsync(string playerName, uint packetType, Func<BinaryWriter, bool> writePayload)
     {
         ClientConnection? connection;
         lock (ClientsByName)
@@ -140,14 +140,15 @@ public static class GameServer
         using MemoryStream ms = new MemoryStream();
         using (BinaryWriter writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
         {
-            writePayload(writer);
+            bool goThrough = writePayload(writer);
+            if (!goThrough) return;
         }
 
         byte[] payload = ms.ToArray();
         await SendRawAsync(connection, packetType, payload);
     }
 
-    public static void Send(string playerName, uint packetType, Action<BinaryWriter> writePayload)
+    public static void Send(string playerName, uint packetType, Func<BinaryWriter, bool> writePayload)
     {
         SendAsync(playerName, packetType, writePayload).GetAwaiter().GetResult();
     }
@@ -164,19 +165,36 @@ public static class GameServer
         Buffer.BlockCopy(BitConverter.GetBytes(packetType), 0, header, 0, 4);
         Buffer.BlockCopy(BitConverter.GetBytes(length), 0, header, 4, 4);
 
-        await stream.WriteAsync(header, 0, header.Length);
-        if (length > 0)
-            await stream.WriteAsync(payload, 0, length);
+        try
+        {
+            await stream.WriteAsync(header, 0, header.Length);
+            if (length > 0)
+                await stream.WriteAsync(payload, 0, length);
+        }
+        catch (Exception ex) when (ex is IOException || ex is SocketException || ex is ObjectDisposedException)
+        {
+            lock (Clients)
+                Clients.Remove(connection);
+
+            if (connection.PlayerName != null)
+            {
+                lock (ClientsByName)
+                    ClientsByName.Remove(connection.PlayerName);
+            }
+
+            connection.TcpClient.Close();
+        }
     }
 
-    public static async Task SendToAllAsync(uint packetType, Action<BinaryWriter> writePayload)
+    public static async Task SendToAllAsync(uint packetType, Func<BinaryWriter, bool> writePayload)
     {
         byte[] payload;
         using (MemoryStream ms = new MemoryStream())
         {
             using (BinaryWriter writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
             {
-                writePayload(writer);
+                bool goThrough = writePayload(writer);
+                if (!goThrough) return;
             }
 
             payload = ms.ToArray();
@@ -202,7 +220,7 @@ public static class GameServer
         await Task.WhenAll(sendTasks);
     }
 
-    public static void SendToAll(uint packetType, Action<BinaryWriter> writePayload)
+    public static void SendToAll(uint packetType, Func<BinaryWriter, bool> writePayload)
     {
         SendToAllAsync(packetType, writePayload).GetAwaiter().GetResult();
     }

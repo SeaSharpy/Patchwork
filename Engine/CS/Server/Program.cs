@@ -8,18 +8,27 @@ public partial class Program
             Engine engine = new();
             Console.TreatControlCAsInput = true;
             WriteLine("Starting server.");
-            _ = GameServer.StartAsync(4000);
             try
             {
-                WriteLine("Engine nowindow-load.");
-                engine.NoWindowLoad();
+                WriteLine("Engine common-load.");
+                engine.CommonLoad();
             }
             catch (Exception ex)
             {
-                WriteLine("Engine nowindow-load failed: " + ex);
+                WriteLine("Engine common-load failed: " + ex);
                 goto ErrorB;
             }
             {
+                try
+                {
+                    WriteLine("Engine server-load.");
+                    engine.ServerLoad();
+                }
+                catch (Exception ex)
+                {
+                    WriteLine("Engine server-load failed: " + ex);
+                    goto ErrorA;
+                }
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 long lastTicks = stopwatch.ElapsedTicks;
                 double tickFrequency = 1.0 / Stopwatch.Frequency;
@@ -52,16 +61,26 @@ public partial class Program
                     }
                 }
             ErrorA:;
+                try
+                {
+                    WriteLine("Engine server-unload.");
+                    engine.ServerUnload();
+                }
+                catch (Exception ex)
+                {
+                    WriteLine("Engine server-unload failed: " + ex);
+                    throw new Engine.BubbleException();
+                }
             }
         ErrorB:;
             try
             {
-                WriteLine("Engine nowindow-unload.");
-                engine.NoWindowUnload();
+                WriteLine("Engine common-unload.");
+                engine.CommonUnload();
             }
             catch (Exception ex)
             {
-                WriteLine("Engine nowindow-unload failed: " + ex);
+                WriteLine("Engine common-unload failed: " + ex);
                 throw new Engine.BubbleException();
             }
             GameServer.Dispose();
