@@ -79,6 +79,7 @@ public static class FrameGraph
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, linear ? (int)TextureMagFilter.Linear : (int)TextureMagFilter.Nearest);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, repeat ? (int)TextureWrapMode.Repeat : (int)TextureWrapMode.ClampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, repeat ? (int)TextureWrapMode.Repeat : (int)TextureWrapMode.ClampToEdge);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             Bindless = GL.Arb.GetTextureHandle(Handle);
             GL.Arb.MakeTextureHandleResident(Bindless);
         }
@@ -100,7 +101,7 @@ public static class FrameGraph
                 case TextureFormat.Normal:
                     internalFormat = PixelInternalFormat.Rgb10A2;
                     pixelFormat = PixelFormat.Rgba;
-                    pixelType = PixelType.UnsignedByte;
+                    pixelType = PixelType.UnsignedInt1010102;
                     break;
                 case TextureFormat.MetallicRoughnessAO:
                     internalFormat = PixelInternalFormat.Rgb8;
@@ -121,10 +122,6 @@ public static class FrameGraph
         {
             GL.Arb.MakeTextureHandleNonResident(Bindless);
             GL.DeleteTexture(Handle);
-        }
-        ~GPUTexture()
-        {
-            Dispose();
         }
     }
     public struct GPUMesh
