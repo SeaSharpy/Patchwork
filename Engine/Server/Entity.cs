@@ -39,7 +39,15 @@ public abstract partial class Entity : IDisposable
         {
             DisposeTimer -= Helper.DeltaTime;
             if (DisposeTimer <= 0)
+            {
                 Dispose();
+                return;
+            }
+        }
+        if (Model is ModelFile model)
+        {
+            BinaryReader reader = new(DriveMounts.FileStream(model.Path));
+            Model = (IModel)Serializer.Deserialize(reader);
         }
         lock (QueuedOutputs)
             if (QueuedOutputs.Count > 0)

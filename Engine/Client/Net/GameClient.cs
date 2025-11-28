@@ -1,10 +1,6 @@
-using System;
-using System.IO;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-
+namespace Patchwork.Net;
 public static class GameClient
 {
     public static event Action<uint, BinaryReader>? PacketReceived;

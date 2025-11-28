@@ -16,6 +16,7 @@ public partial class Engine
     {
         GL.ClearColor(Random.Shared.NextSingle(), Random.Shared.NextSingle(), Random.Shared.NextSingle(), 1);
         GL.Clear(ClearBufferMask.ColorBufferBit);
+        FrameGraph.Build();
     }
 
 }

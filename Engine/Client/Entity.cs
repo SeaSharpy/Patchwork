@@ -1,7 +1,10 @@
+using OpenTK.Mathematics;
+
 namespace Patchwork;
 
 public abstract partial class Entity : IDisposable
 {
+    public Matrix4 Transform => Matrix4.CreateScale(Scale) * Matrix4.CreateFromQuaternion(TK(Rotation)) * Matrix4.CreateTranslation(TK(Position));
     public static void SetupPackets()
     {
         GameClient.PacketReceived += (packetType, reader) =>

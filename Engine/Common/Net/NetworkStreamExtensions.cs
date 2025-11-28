@@ -1,5 +1,6 @@
+global using Patchwork.Net;
 using System.Net.Sockets;
-
+namespace Patchwork.Net;
 public static class NetworkStreamExtensions
 {
     public static async Task ReadExactlyAsync(this NetworkStream stream, byte[] buffer, int length)

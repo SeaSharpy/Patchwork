@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
-
+global using Patchwork.Client.Audio;
 namespace Patchwork.Client.Audio;
 
 public sealed class AudioPlayer : IDisposable

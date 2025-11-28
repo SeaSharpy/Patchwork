@@ -1,4 +1,4 @@
-using System.Numerics;
+global using Patchwork.Client.Input;
 namespace Patchwork.Client.Input;
 
 public enum ButtonState : byte

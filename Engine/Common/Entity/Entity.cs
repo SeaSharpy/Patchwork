@@ -2,9 +2,28 @@ using System.Numerics;
 using System.Reflection;
 namespace Patchwork;
 
-public interface IModel
+public interface IModel : ISerializable { }
+public class ModelFile : IModel
 {
-
+    [SerializedMember] public string Path;
+}
+public class Model : IModel
+{
+    [SerializedMember] public string ShaderPath;
+    [SerializedMember] public string DataPath;
+    [SerializedMember] public ITexture[] Textures;
+    [SerializedMember] public float[] ShaderParameters;
+}
+public interface ITexture
+{
+}
+public class PathTexture : ITexture
+{
+    [SerializedMember] public string Path;
+}
+public class RenderTexture : ITexture
+{
+    [SerializedMember] public uint Camera { get; }
 }
 public interface ISerializable
 {
@@ -16,6 +35,8 @@ public abstract partial class Entity : IDisposable, ISerializable
     [SerializedMember] public IModel Model;
     [SerializedMember] public Connection[] Connections;
     [SerializedMember] public Vector3 Position;
+    [SerializedMember] public Quaternion Rotation;
+    [SerializedMember] public float Scale;
 }
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
@@ -147,14 +168,63 @@ public static class Serializer
             string memberName = reader.ReadString();
             if (!members.TryGetValue(memberName, out SerializedMember serializedMember)) throw new InvalidDataException($"Member {memberName} not found.");
             Type memberType = serializedMember.Type;
-            object? value = ReadValue(reader, memberType);
-            if (serializedMember.Member is PropertyInfo property)
-                property.SetValue(obj, value);
-            else if (serializedMember.Member is FieldInfo field)
-                field.SetValue(obj, value);
+            object? prevValue = null;
+            {
+                if (serializedMember.Member is PropertyInfo property)
+                    prevValue = property.GetValue(obj);
+                else if (serializedMember.Member is FieldInfo field)
+                    prevValue = field.GetValue(obj);
+            }
+            object? value = ReadValueObj(reader, memberType, prevValue);
+            {
+                if (serializedMember.Member is PropertyInfo property)
+                    property.SetValue(obj, value);
+                else if (serializedMember.Member is FieldInfo field)
+                    field.SetValue(obj, value);
+            }
         }
     }
+    private static object ReadValueObj(BinaryReader reader, Type type, object? value)
+    {
+        if (type.IsArray)
+        {
+            if (value is Array array && array.GetType().GetElementType() == type)
+            {
+                Array.Clear(array);
+                int length = reader.ReadInt32();
+                Type elementType = type.GetElementType()!;
+                for (int i = 0; i < length; i++)
+                {
+                    object element = ReadValue(reader, elementType);
+                    array.SetValue(element, i);
+                }
+                return array;
+            }
+            else
+            {
+                int length = reader.ReadInt32();
+                Type elementType = type.GetElementType()!;
+                Array newArray = Array.CreateInstance(elementType, length);
+                for (int i = 0; i < length; i++)
+                {
+                    object element = ReadValue(reader, elementType);
+                    newArray.SetValue(element, i);
+                }
+                return newArray;
+            }
+        }
 
+        if (typeof(ISerializable).IsAssignableFrom(type))
+        {
+            if (value is ISerializable s)
+                Deserialize(reader, s);
+            else
+                return Deserialize(reader);
+            return s;
+        }
+
+        return ReadValue(reader, type);
+    }
     private static void WriteValue(BinaryWriter writer, Type type, object? value, bool save = true)
     {
         if (type.IsEnum)
@@ -214,6 +284,15 @@ public static class Serializer
             writer.Write(v.W);
             return;
         }
+        if (type == typeof(Quaternion))
+        {
+            Quaternion v = value is Quaternion vv ? vv : default;
+            writer.Write(v.X);
+            writer.Write(v.Y);
+            writer.Write(v.Z);
+            writer.Write(v.W);
+            return;
+        }
 
         if (type.IsArray)
         {
@@ -264,7 +343,9 @@ public static class Serializer
             return new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
         if (type == typeof(Vector4))
             return new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-
+        if (type == typeof(Quaternion))
+            return new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        
         if (type.IsArray)
         {
             int length = reader.ReadInt32();

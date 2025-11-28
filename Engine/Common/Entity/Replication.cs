@@ -20,7 +20,7 @@ public abstract partial class Entity : IDisposable
     }
     public static Entity GetEntity(uint ID) => Entities.TryGetValue(ID, out Entity? entity) ? entity : throw new KeyNotFoundException($"Entity with ID {ID} not found.");
     public static Entity? TryGetEntity(uint ID) => Entities.TryGetValue(ID, out Entity? entity) ? entity : null;
-    private static readonly Dictionary<uint, Entity> Entities = new();
+    public static readonly Dictionary<uint, Entity> Entities = new();
 
 
     public static Entity Create(Type type, BinaryReader? data = null)

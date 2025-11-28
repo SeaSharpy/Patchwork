@@ -27,10 +27,9 @@
   
   <ItemGroup>
     <PackageReference Include="OpenTK" Version="4.9.4" Condition="'$(Headless)' != 'true'" />
-    <EmbeddedResource Include="Engine\Included\*" />
-    <Compile Include="Engine\CS\Common\**\*.cs" />
-    <Compile Include="Engine\CS\Client\**\*.cs" Condition="'$(Headless)' != 'true'" />
-    <Compile Include="Engine\CS\Server\**\*.cs" Condition="'$(Headless)' == 'true'" />
+    <Compile Include="Engine\Common\**\*.cs" />
+    <Compile Include="Engine\Client\**\*.cs" Condition="'$(Headless)' != 'true'" />
+    <Compile Include="Engine\Server\**\*.cs" Condition="'$(Headless)' == 'true'" />
   </ItemGroup>
 
   <Target Name="BuildServer">
