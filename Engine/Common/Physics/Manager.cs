@@ -183,7 +183,7 @@ public static class PhysicsManager
     public const uint Magic = 0xFF762496;
     public static (ConvexHull hull, TypedIndex index) CreateShape(Model model)
     {
-        BinaryReader reader = model.DataReader;
+        using BinaryReader reader = model.DataReader;
         uint magic = reader.ReadUInt32();
         if (magic != Magic)
         {

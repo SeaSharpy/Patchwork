@@ -303,7 +303,8 @@ public static class FrameGraph
             else continue;
             if (!Meshes.ContainsKey(model.DataPath))
             {
-                Meshes[model.DataPath] = new GPUMesh(model.DataReader);
+                using BinaryReader reader = model.DataReader;
+                Meshes[model.DataPath] = new GPUMesh(reader);
                 return false;
             }
             BatchSeperator batchSeperator = new(model.DataPath);

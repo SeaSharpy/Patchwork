@@ -12,11 +12,21 @@ public partial class Engine
     public void ClientUnload()
     {
     }
+    public int Loading = 0;
     public void Render()
     {
         GL.ClearColor(Random.Shared.NextSingle(), Random.Shared.NextSingle(), Random.Shared.NextSingle(), 1);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        FrameGraph.Build();
+        if (FrameGraph.Build())
+        {
+            Loading = 0;
+        }
+        else
+        {
+            float value = Loading++;
+            float color = 1f - (1f / (1f + value));
+            GL.ClearColor(color, color, color, 1);
+        }
     }
 
 }
