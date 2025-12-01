@@ -59,8 +59,11 @@ public static class GameServer
         }
         finally
         {
-            Listener.Stop();
-            Listener = null;
+            if (Listener != null)
+            {
+                Listener.Stop();
+                Listener = null;
+            }
         }
     }
 

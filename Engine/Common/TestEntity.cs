@@ -1,6 +1,10 @@
 using System.Numerics;
 public class TestEntity : Entity
 {
+    public TestEntity()
+    {
+        Physics = false;
+    }
     public override IEnumerable<string> Inputs => ["test"];
     public override IEnumerable<string> Outputs => ["test"];
     public override float SyncInterval => 0.1f;

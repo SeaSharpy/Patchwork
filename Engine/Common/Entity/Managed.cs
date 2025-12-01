@@ -8,7 +8,7 @@ public abstract partial class Entity : IDisposable
     public bool Disposing { get; private set; }
     public float DisposeTimer { get; private set; }
     public void Kill() => Dead = true;
-
+    private bool Initialized = false;
     protected Entity()
     {
         ID = GetID();
@@ -19,9 +19,18 @@ public abstract partial class Entity : IDisposable
         if (Disposed) return;
         Disposed = true;
         Disposing = false;
+        if (Physics && Handle.HasValue)
+            PhysicsManager.DisposeBody(Handle.Value);
         DisposeExtras();
         lock (Entities)
             Entities.Remove(ID);
+    }
+    private void Initialize()
+    {
+        if (Initialized) return;
+        Initialized = true;
+        if (Physics)
+            PhysicsManager.Add(this);
     }
     public void DisposeIn(float time)
     {

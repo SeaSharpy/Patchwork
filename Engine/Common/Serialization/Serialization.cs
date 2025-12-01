@@ -3,9 +3,10 @@ using System.Reflection;
 namespace Patchwork.Serialization;
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-public sealed class SerializedMemberAttribute(bool save = true) : Attribute
+public sealed class SerializedMemberAttribute(bool save = true, string? queue = null) : Attribute
 {
     public bool Save { get; init; } = save;
+    public string? Queue { get; init; } = queue;
 }
 
 public struct SerializedMember
@@ -13,6 +14,7 @@ public struct SerializedMember
     public MemberInfo Member;
     public Type Type;
     public bool Save;
+    public string? Queue;
 }
 public static class SerializationRegistry
 {
@@ -36,7 +38,7 @@ public static class SerializationRegistry
                 memberType = field.FieldType;
             }
             else continue;
-            members[member.Name] = new SerializedMember { Member = member, Type = memberType, Save = attribute.Save };
+            members[member.Name] = new SerializedMember { Member = member, Type = memberType, Save = attribute.Save, Queue = attribute.Queue };
         }
         Members[type] = members;
     }
@@ -53,6 +55,18 @@ public interface ISerializable
 }
 public static class Serializer
 {
+    public static Dictionary<string, Queue<(SerializedMember member, ISerializable obj, object? value)>> Queues = new();
+    public static void FlushQueue(string queueName)
+    {
+        if (!Queues.TryGetValue(queueName, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue)) return;
+        while (queue.TryDequeue(out (SerializedMember member, ISerializable obj, object? value) item))
+        {
+            if (item.member.Member is PropertyInfo property)
+                property.SetValue(item.obj, item.value);
+            else if (item.member.Member is FieldInfo field)
+                field.SetValue(item.obj, item.value);
+        }
+    }
     public static void Serialize(BinaryWriter writer, ISerializable obj, bool save = true, List<string>? enabled = null)
     {
         Type type = obj.GetType();
@@ -114,6 +128,13 @@ public static class Serializer
             if (!members.TryGetValue(memberName, out SerializedMember serializedMember)) throw new InvalidDataException($"Member {memberName} not found.");
             Type memberType = serializedMember.Type;
             object? value = ReadValue(reader, memberType);
+            if (serializedMember.Queue != null)
+            {
+                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue))
+                    Queues[serializedMember.Queue] = queue = new();
+                queue.Enqueue((serializedMember, obj, value));
+                continue;
+            }
             if (serializedMember.Member is PropertyInfo property)
                 property.SetValue(obj, value);
             else if (serializedMember.Member is FieldInfo field)
@@ -143,6 +164,13 @@ public static class Serializer
                     prevValue = field.GetValue(obj);
             }
             object? value = ReadValueObj(reader, memberType, prevValue);
+            if (serializedMember.Queue != null)
+            {
+                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue))
+                    Queues[serializedMember.Queue] = queue = new();
+                queue.Enqueue((serializedMember, obj, value));
+                continue;
+            }
             {
                 if (serializedMember.Member is PropertyInfo property)
                     property.SetValue(obj, value);

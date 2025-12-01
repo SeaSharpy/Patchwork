@@ -97,6 +97,9 @@ public abstract partial class Entity : IDisposable
     public void Tick()
     {
         lock (this)
+        {
+            Initialize();
             Client();
+        }
     }
 }

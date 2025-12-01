@@ -63,7 +63,10 @@ public abstract partial class Entity : IDisposable
                     else
                         QueuedOutputs[i] = QueuedOutputs[i] with { wait = QueuedOutputs[i].wait - Helper.DeltaTime };
         lock (this)
+        {
+            Initialize();
             Server();
+        }
     }
     public static Stack<uint> DisposedIDs = new();
     public void DisposeExtras()
@@ -75,12 +78,12 @@ public abstract partial class Entity : IDisposable
 
     public static void DisposeAllExtras()
     {
-        NextId = 0;
+        NextId = 1;
         FreeIds.Clear();
         GameServer.SendToAll((uint)PacketType.Clear, (BinaryWriter writer) => { return true; });
     }
     private static readonly Stack<uint> FreeIds = new();
-    private static uint NextId = 0;
+    private static uint NextId = 1;
     private static uint GetID()
     {
         checked

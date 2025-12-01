@@ -1,5 +1,6 @@
 global using Patchwork;
 global using Patchwork.FileSystem;
+global using Patchwork.Physics;
 global using static Patchwork.Logging;
 global using Vector4 = System.Numerics.Vector4;
 global using Vector3 = System.Numerics.Vector3;

@@ -27,6 +27,8 @@
   
   <ItemGroup>
     <PackageReference Include="OpenTK" Version="4.9.4" Condition="'$(Headless)' != 'true'" />
+    <PackageReference Include="BepuPhysics" Version="2.4.0" />
+    <PackageReference Include="BepuUtilities" Version="2.4.0" />
     <Compile Include="Engine\Common\**\*.cs" />
     <Compile Include="Engine\Client\**\*.cs" Condition="'$(Headless)' != 'true'" />
     <Compile Include="Engine\Server\**\*.cs" Condition="'$(Headless)' == 'true'" />
