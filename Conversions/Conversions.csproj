@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishSelfContained>true</PublishSelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
+  </ItemGroup>
+
+  <Target Name="BuildConverter">
+    <MSBuild Projects="$(MSBuildProjectFullPath)"
+             Targets="Restore;Publish"
+             Properties="Configuration=Release;Headless=true;PublishDir=$(MSBuildProjectDirectory)\Executables\Conversions" />
+  </Target>
+</Project>

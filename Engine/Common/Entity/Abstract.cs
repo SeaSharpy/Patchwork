@@ -1,6 +1,6 @@
 namespace Patchwork;
 
-public abstract partial class Entity : IDisposable
+public partial class Entity : IDisposable
 {
     public virtual IEnumerable<string> Inputs { get; } = [];
     public virtual IEnumerable<string> Outputs { get; } = [];

@@ -24,7 +24,7 @@ public class Model : IModel
         }
     }
     [SerializedMember] public ITexture? Albedo;
-    [SerializedMember] public Vector3? ConstantAlbedo;
+    [SerializedMember] public Vector4? ConstantAlbedo;
     [SerializedMember] public ITexture? MetallicRoughnessAO;
     [SerializedMember] public Vector3? ConstantMetallicRoughnessAO;
     [SerializedMember] public ITexture? Emissive;
@@ -59,8 +59,8 @@ public interface ITexture : ISerializable
 public class PathTexture : ITexture
 {
     [SerializedMember] public string Path;
-    [SerializedMember] public Vector2 Scale;
-    [SerializedMember] public Vector2 Offset;
+    [SerializedMember] public Vector2 Scale = Vector2.One;
+    [SerializedMember] public Vector2 Offset = Vector2.Zero;
 }
 public class RenderTexture : ITexture
 {
@@ -68,37 +68,17 @@ public class RenderTexture : ITexture
     [SerializedMember] public Vector2 Scale;
     [SerializedMember] public Vector2 Offset;
 }
-public class Camera
-{
-    public static Camera? Screen;
-    [SerializedMember] public Vector2 Size;
-    [SerializedMember] public uint Entity;
-}
-public abstract partial class Entity : IDisposable, ISerializable
+public partial class Entity : IDisposable, ISerializable
 {
 
-    private Camera? CameraInternal;
-    [SerializedMember]
-    public Camera? Camera
+    public struct CamData : ISerializable
     {
-        get => CameraInternal;
-        set
-        {
-            if (CameraInternal != null)
-            {
-                CameraInternal.Entity = 0;
-                CameraInternal = null;
-            }
-            if (value != null)
-            {
-                if (value.Entity != 0) throw new InvalidDataException("Camera must be attached to only one entity.");
-                CameraInternal = value;
-                value.Entity = ID;
-            }
-        }
+        [SerializedMember] public Vector2 Size;
     }
+    public CamData? Cam = null;
     [SerializedMember] public string Name;
     [SerializedMember] public IModel Model;
+    [SerializedMember] public uint Layers;
     [SerializedMember] public Connection[] Connections;
     private Vector3 PositionInternal = Vector3.Zero;
 
@@ -138,7 +118,7 @@ public abstract partial class Entity : IDisposable, ISerializable
                 PhysicsManager.MassUpdate(Handle.Value, value);
         }
     }
-    [SerializedMember] public bool Physics { get; init; } = true;
+    [SerializedMember] public bool Physics { get; init; } = false;
     [SerializedMember] public bool Static { get; init; } = false;
     private Vector3 VelocityInternal = Vector3.Zero;
     [SerializedMember(queue: "physics")]

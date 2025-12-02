@@ -2,7 +2,7 @@ using OpenTK.Mathematics;
 
 namespace Patchwork;
 
-public abstract partial class Entity : IDisposable
+public partial class Entity : IDisposable
 {
     public Matrix4 Transform => Matrix4.CreateScale(Scale) * Matrix4.CreateFromQuaternion(TK(Rotation)) * Matrix4.CreateTranslation(TK(Position));
     public static void SetupPackets()
@@ -22,6 +22,7 @@ public abstract partial class Entity : IDisposable
                             Create(reader, ID);
                             return;
                         }
+                        Console.WriteLine($"Deserializing {ID}.");
                         lock (entity)
                             Serializer.Deserialize(reader, entity);
                     }

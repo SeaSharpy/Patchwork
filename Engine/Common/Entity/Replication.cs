@@ -1,7 +1,7 @@
 using System.Reflection;
 namespace Patchwork;
 
-public abstract partial class Entity : IDisposable
+public partial class Entity : IDisposable
 {
     public Dictionary<string, object> PreviousNetworkState { get; } = new();
     public static Entity GetEntity(string name)
@@ -21,8 +21,6 @@ public abstract partial class Entity : IDisposable
     public static Entity GetEntity(uint ID) => Entities.TryGetValue(ID, out Entity? entity) ? entity : throw new KeyNotFoundException($"Entity with ID {ID} not found.");
     public static Entity? TryGetEntity(uint ID) => Entities.TryGetValue(ID, out Entity? entity) ? entity : null;
     public static readonly Dictionary<uint, Entity> Entities = new();
-
-
     public static Entity Create(Type type, BinaryReader? data = null)
     {
         Entity created = (Entity)Activator.CreateInstance(type, nonPublic: true)!;
@@ -33,7 +31,7 @@ public abstract partial class Entity : IDisposable
     }
     private static Entity Create(BinaryReader data, uint? ID = null)
     {
-        Entity entity = (Entity)Serializer.Deserialize(data);
+        Entity entity = (Entity)(Serializer.Deserialize(data) ?? throw new InvalidDataException("Deserialized static entity for some fucking reason."));
         if (ID != null)
             entity.ID = ID.Value;
         entity.AddToEntities();

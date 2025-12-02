@@ -32,6 +32,7 @@ public partial class Program
                 using NativeWindow window = new(nativeWindowSettings);
                 window.Context.MakeCurrent();
                 window.Context.SwapInterval = 1;
+                engine.Window = window;
                 try
                 {
                     WriteLine("Engine client-load.");
@@ -57,7 +58,7 @@ public partial class Program
                     try
                     {
                         engine.Update(deltaTime);
-                        engine.Render();
+                        engine.Render((Vector2)new TKVector2(window.FramebufferSize.X, window.FramebufferSize.Y));
                     }
                     catch (Engine.CloseException)
                     {

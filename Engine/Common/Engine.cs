@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Numerics;
 namespace Patchwork;
 
 public partial class Engine
@@ -7,24 +5,21 @@ public partial class Engine
     public float DeltaTime { get; private set; }
     public float Time => (float)TimeDouble;
     private double TimeDouble = 0;
-    public Vector3 Gravity = new Vector3(0, -10, 0);
     public void CommonLoad()
     {
         DriveMounts.Mount("C", new PhysicalFileSystem("."));
-        Helper.Init(this);
-        TestEntity entity = (TestEntity)Entity.Create(typeof(TestEntity));
-        entity.Name = "Test";
-        entity.Position = new Vector3(0, 0, 0);
-        entity.Connections = [];
+        HelperInit(this);
     }
     public void Update(double dt)
     {
         DeltaTime = (float)dt;
         TimeDouble += dt;
+        UpdateExtrasPre();
         Serializer.FlushQueue("physics");
         PhysicsManager.Update();
         Entity.TickAll();
-    }    
+        UpdateExtrasPost();
+    }
     public void CommonUnload()
     {
         DriveMounts.Dispose();
@@ -38,7 +33,7 @@ public partial class Engine
 public static class Helper
 {
     private static Engine Instance = null!;
-    public static void Init(Engine engine)
+    public static void HelperInit(Engine engine)
     {
         if (Instance != null)
             throw new InvalidOperationException("Engine helper already initialized.");
@@ -46,10 +41,5 @@ public static class Helper
     }
     public static float Time => Instance.Time;
     public static float DeltaTime => Instance.DeltaTime;
-    public static Vector3 Gravity
-    {
-        get => Instance.Gravity;
-        set => Instance.Gravity = value;
-    }
     public static void Close() => Instance.Close();
 }

@@ -1,8 +1,8 @@
-Assets/**
-Game/**
-bin/**
-obj/**
+Assets/
+Game/
+bin/
+obj/
 *.py
 *.ttf
 *.sln
-Executables/**
+Executables/

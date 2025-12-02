@@ -1,4 +1,5 @@
 global using Patchwork.Client.Input;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 namespace Patchwork.Client.Input;
 
 public enum ButtonState : byte
@@ -23,13 +24,13 @@ public static class InputState
         ButtonState button5Down,
         Vector2 scroll,
         Vector2 previousScroll,
-        Vector2 deltaScroll
-        
+        Vector2 deltaScroll,
+        OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState keyboardState
     )
     {
         MouseStateInternal.Position = new Vector2(position.X, position.Y);
         MouseStateInternal.PreviousPosition = new Vector2(previousPosition.X, previousPosition.Y);
-        MouseStateInternal.Delta = new Vector2(delta.X, -delta.Y);
+        MouseStateInternal.Delta = new Vector2(delta.X, delta.Y);
         MouseStateInternal.LeftButtonDown = leftButtonDown;
         MouseStateInternal.RightButtonDown = rightButtonDown;
         MouseStateInternal.MiddleButtonDown = middleButtonDown;
@@ -38,7 +39,7 @@ public static class InputState
         MouseStateInternal.Scroll = scroll;
         MouseStateInternal.PreviousScroll = previousScroll;
         MouseStateInternal.DeltaScroll = deltaScroll;
-        KeyboardStateInternal.InternalState = 0;
+        KeyboardStateInternal.InternalState = keyboardState;
     }
 }
 
@@ -75,41 +76,37 @@ public static class MouseState
 }
 file static class KeyboardStateInternal
 {
-    public static int InternalState = 0;
-}
-public struct Key
-{
-    
+    public static OpenTK.Windowing.GraphicsLibraryFramework.KeyboardState InternalState;
 }
 public static class KeyboardState
 {
-    public static bool IsKeyDown(Key key)
+    public static bool IsKeyDown(Keys key)
     {
-        return false;
+        return KeyboardStateInternal.InternalState.IsKeyDown((OpenTK.Windowing.GraphicsLibraryFramework.Keys)key);
     }
-    public static bool IsKeyPressed(Key key)
+    public static bool IsKeyPressed(Keys key)
     {
-        return false;
+        return KeyboardStateInternal.InternalState.IsKeyPressed((OpenTK.Windowing.GraphicsLibraryFramework.Keys)key);
     }
-    public static bool IsKeyReleased(Key key)
+    public static bool IsKeyReleased(Keys key)
     {
-        return false;
+        return KeyboardStateInternal.InternalState.IsKeyReleased((OpenTK.Windowing.GraphicsLibraryFramework.Keys)key);
     }
     public sealed class KeyboardDownIndexer
     {
-        public bool this[Key key]
+        public bool this[Keys key]
             => IsKeyDown(key);
     }
 
     public sealed class KeyboardPressedIndexer
     {
-        public bool this[Key key]
+        public bool this[Keys key]
             => IsKeyPressed(key);
     }
 
     public sealed class KeyboardReleasedIndexer
     {
-        public bool this[Key key]
+        public bool this[Keys key]
             => IsKeyReleased(key);
     }
     public static readonly KeyboardDownIndexer Down = new KeyboardDownIndexer();

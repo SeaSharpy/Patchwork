@@ -1,7 +1,7 @@
 using System.Reflection;
 namespace Patchwork;
 
-public abstract partial class Entity : IDisposable
+public partial class Entity : IDisposable
 {
     public static void SetupPackets()
     {
@@ -24,7 +24,11 @@ public abstract partial class Entity : IDisposable
             }
             catch (EndOfStreamException) { }
         };
-        }
+        GameServer.PlayerJoined += (player) =>
+        {
+            ClearAllState();
+        };
+    }
     public float SyncTimer = 0;
     public static void TickAll()
     {
@@ -37,7 +41,7 @@ public abstract partial class Entity : IDisposable
         if (Disposed) return;
         if (Disposing)
         {
-            DisposeTimer -= Helper.DeltaTime;
+            DisposeTimer -= DeltaTime;
             if (DisposeTimer <= 0)
             {
                 Dispose();
@@ -46,8 +50,8 @@ public abstract partial class Entity : IDisposable
         }
         if (Model is ModelFile model)
         {
-            BinaryReader reader = new(DriveMounts.FileStream(model.Path));
-            Model = (IModel)Serializer.Deserialize(reader);
+            using BinaryReader reader = new(DriveMounts.FileStream(model.Path));
+            Model = (IModel)(Serializer.Deserialize(reader) ?? throw new InvalidDataException("Deserialized static model for some fucking reason, how does this happen lol."));
         }
         lock (QueuedOutputs)
             if (QueuedOutputs.Count > 0)
@@ -61,7 +65,7 @@ public abstract partial class Entity : IDisposable
                         i--;
                     }
                     else
-                        QueuedOutputs[i] = QueuedOutputs[i] with { wait = QueuedOutputs[i].wait - Helper.DeltaTime };
+                        QueuedOutputs[i] = QueuedOutputs[i] with { wait = QueuedOutputs[i].wait - DeltaTime };
         lock (this)
         {
             Initialize();
@@ -95,22 +99,25 @@ public abstract partial class Entity : IDisposable
     }
     public List<string> GetNetworkPayload()
     {
-        Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(typeof(Entity));
-        List<string> payload = new();
-        foreach (KeyValuePair<string, SerializedMember> member in members)
+        lock (PreviousNetworkState)
         {
-            object? value = null;
-            if (member.Value.Member is PropertyInfo property)
-                value = property.GetValue(this);
-            else if (member.Value.Member is FieldInfo field)
-                value = field.GetValue(this);
-            if (value == null) continue;
-            if (PreviousNetworkState.TryGetValue(member.Key, out object? previousValue))
-                if (value.Equals(previousValue)) continue;
-            payload.Add(member.Key);
-            PreviousNetworkState[member.Key] = value;
+            Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(typeof(Entity));
+            List<string> payload = new();
+            foreach (KeyValuePair<string, SerializedMember> member in members)
+            {
+                object? value = null;
+                if (member.Value.Member is PropertyInfo property)
+                    value = property.GetValue(this);
+                else if (member.Value.Member is FieldInfo field)
+                    value = field.GetValue(this);
+                if (value == null) continue;
+                if (PreviousNetworkState.TryGetValue(member.Key, out object? previousValue))
+                    if (value.Equals(previousValue)) continue;
+                payload.Add(member.Key);
+                PreviousNetworkState[member.Key] = value;
+            }
+            return payload;
         }
-        return payload;
     }
     public static void SyncAll()
     {
@@ -127,6 +134,11 @@ public abstract partial class Entity : IDisposable
                 done |= entity.Sync(writer);
             return done;
         });
+    }
+    public static void ClearAllState()
+    {
+        foreach (Entity entity in Entities.Values.ToArray())
+            entity.ClearState();
     }
     public void MessagePlayer(string player, string name, Action<BinaryWriter> writePayload)
     {
@@ -150,13 +162,18 @@ public abstract partial class Entity : IDisposable
     }
     public bool Sync(BinaryWriter writer)
     {
-        SyncTimer -= Helper.DeltaTime;
+        SyncTimer -= DeltaTime;
         if (SyncTimer > 0) return false;
         SyncTimer = SyncInterval;
         List<string> payload = GetNetworkPayload();
         if (payload.Count == 0) return false;
         writer.Write(ID);
-        Serializer.Serialize(writer, this, false, payload);
+        Serializer.Serialize(writer, this, ["runtime"], payload);
         return true;
+    }
+    public void ClearState()
+    {
+        lock (PreviousNetworkState)
+            PreviousNetworkState.Clear();
     }
 }

@@ -7,4 +7,5 @@ public enum PacketType : uint
     Destroy = 2,
     Clear = 3,
     EntityMessage = 4,
+    Globals = 5,
 }

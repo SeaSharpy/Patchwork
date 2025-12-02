@@ -3,9 +3,9 @@ using System.Reflection;
 namespace Patchwork.Serialization;
 
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-public sealed class SerializedMemberAttribute(bool save = true, string? queue = null) : Attribute
+public sealed class SerializedMemberAttribute(string[]? flags = null, string? queue = null) : Attribute
 {
-    public bool Save { get; init; } = save;
+    public string[] Flags { get; init; } = flags ?? [];
     public string? Queue { get; init; } = queue;
 }
 
@@ -13,23 +13,32 @@ public struct SerializedMember
 {
     public MemberInfo Member;
     public Type Type;
-    public bool Save;
+    public string[] Flags;
     public string? Queue;
 }
 public static class SerializationRegistry
 {
+    public static readonly Type[] StaticSerializers = [
+        typeof(Globals),
+    ];
+    public static void InitializeStaticSerializers()
+    {
+        foreach (Type type in StaticSerializers)
+            Register(type, true);
+    }
     private static Dictionary<Type, Dictionary<string, SerializedMember>> Members = new();
-    private static void Register(Type type)
+    private static void Register(Type type, bool static_ = false)
     {
         Dictionary<string, SerializedMember> members = new();
-        foreach (MemberInfo member in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        foreach (MemberInfo member in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | (static_ ? BindingFlags.Static : BindingFlags.Instance)))
         {
             SerializedMemberAttribute? attribute = member.GetCustomAttribute<SerializedMemberAttribute>();
             if (attribute == null) continue;
             Type memberType;
             if (member is PropertyInfo property)
             {
-                if (!property.CanRead || !property.CanWrite) continue;
+                if (!property.CanRead || !property.CanWrite) continue; 
+                if (property.GetIndexParameters().Length > 0) continue;
                 memberType = property.PropertyType;
             }
             else if (member is FieldInfo field)
@@ -38,7 +47,7 @@ public static class SerializationRegistry
                 memberType = field.FieldType;
             }
             else continue;
-            members[member.Name] = new SerializedMember { Member = member, Type = memberType, Save = attribute.Save, Queue = attribute.Queue };
+            members[member.Name] = new SerializedMember { Member = member, Type = memberType, Flags = attribute.Flags, Queue = attribute.Queue };
         }
         Members[type] = members;
     }
@@ -55,11 +64,11 @@ public interface ISerializable
 }
 public static class Serializer
 {
-    public static Dictionary<string, Queue<(SerializedMember member, ISerializable obj, object? value)>> Queues = new();
+    public static Dictionary<string, Queue<(SerializedMember member, ISerializable? obj, object? value)>> Queues = new();
     public static void FlushQueue(string queueName)
     {
-        if (!Queues.TryGetValue(queueName, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue)) return;
-        while (queue.TryDequeue(out (SerializedMember member, ISerializable obj, object? value) item))
+        if (!Queues.TryGetValue(queueName, out Queue<(SerializedMember member, ISerializable? obj, object? value)>? queue)) return;
+        while (queue.TryDequeue(out (SerializedMember member, ISerializable? obj, object? value) item))
         {
             if (item.member.Member is PropertyInfo property)
                 property.SetValue(item.obj, item.value);
@@ -67,7 +76,17 @@ public static class Serializer
                 field.SetValue(item.obj, item.value);
         }
     }
-    public static void Serialize(BinaryWriter writer, ISerializable obj, bool save = true, List<string>? enabled = null)
+    static bool IsValidSubset(string[] allowed, string[] subset)
+    {
+        HashSet<string> allowedSet = new(allowed);
+        for (int i = 0; i < subset.Length; i++)
+        {
+            if (!allowedSet.Contains(subset[i]))
+                return false;
+        }
+        return true;
+    }
+    public static void Serialize(BinaryWriter writer, ISerializable obj, string[]? flags = null, List<string>? enabled = null)
     {
         Type type = obj.GetType();
         Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
@@ -82,12 +101,13 @@ public static class Serializer
 
             if (enabled != null && !enabled.Contains(name))
                 continue;
-            if (save && !member.Save)
+            if (flags != null && !IsValidSubset(flags, member.Flags))
                 continue;
 
             actualCount++;
         }
 
+        writer.Write(false);
         writer.Write(actualCount);
 
         foreach (KeyValuePair<string, SerializedMember> pair in members)
@@ -97,8 +117,7 @@ public static class Serializer
 
             if (enabled != null && !enabled.Contains(name))
                 continue;
-
-            if (save && !member.Save)
+            if (flags != null && !IsValidSubset(flags, member.Flags))
                 continue;
 
             writer.Write(name);
@@ -109,18 +128,62 @@ public static class Serializer
             else if (member.Member is FieldInfo field)
                 value = field.GetValue(obj);
 
-            WriteValue(writer, member.Type, value, save);
+            WriteValue(writer, member.Type, value, flags);
         }
     }
+    public static void Serialize(BinaryWriter writer, Type type, string[]? flags = null, List<string>? enabled = null)
+    {
+        Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
 
-    public static ISerializable Deserialize(BinaryReader reader)
+        writer.Write(type.AssemblyQualifiedName ?? throw new InvalidDataException($"Type {type.Name} doesn't have a full name for some fucking reason."));
+
+        int actualCount = 0;
+        foreach (KeyValuePair<string, SerializedMember> m in members)
+        {
+            string name = m.Key;
+            SerializedMember member = m.Value;
+
+            if (enabled != null && !enabled.Contains(name))
+                continue;
+            if (flags != null && !IsValidSubset(flags, member.Flags))
+                continue;
+
+            actualCount++;
+        }
+
+        writer.Write(true);
+        writer.Write(actualCount);
+
+        foreach (KeyValuePair<string, SerializedMember> pair in members)
+        {
+            string name = pair.Key;
+            SerializedMember member = pair.Value;
+
+            if (enabled != null && !enabled.Contains(name))
+                continue;
+            if (flags != null && !IsValidSubset(flags, member.Flags))
+                continue;
+
+            writer.Write(name);
+
+            object? value = null;
+            if (member.Member is PropertyInfo property)
+                value = property.GetValue(null);
+            else if (member.Member is FieldInfo field)
+                value = field.GetValue(null);
+
+            WriteValue(writer, member.Type, value, flags);
+        }
+    }
+    public static ISerializable? Deserialize(BinaryReader reader)
     {
         string typeName = reader.ReadString();
         Type type = Type.GetType(typeName) ?? throw new InvalidDataException($"Type {typeName} not found.");
         if (!type.IsAssignableTo(typeof(ISerializable))) throw new InvalidDataException($"Type {typeName} is not serializable.");
+        bool static_ = reader.ReadBoolean();
         int memberCount = reader.ReadInt32();
         Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
-        ISerializable obj = (ISerializable)(Activator.CreateInstance(type, nonPublic: true)
+        ISerializable? obj = static_ ? null : (ISerializable)(Activator.CreateInstance(type, nonPublic: true)
                                             ?? throw new InvalidDataException($"Failed to create instance of type {type.FullName}."));
         for (int i = 0; i < memberCount; i++)
         {
@@ -130,7 +193,7 @@ public static class Serializer
             object? value = ReadValue(reader, memberType);
             if (serializedMember.Queue != null)
             {
-                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue))
+                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable? obj, object? value)>? queue))
                     Queues[serializedMember.Queue] = queue = new();
                 queue.Enqueue((serializedMember, obj, value));
                 continue;
@@ -149,6 +212,8 @@ public static class Serializer
         Type type = Type.GetType(typeName) ?? throw new InvalidDataException($"Type {typeName} not found.");
         if (type != obj.GetType()) throw new InvalidDataException($"Type {typeName} does not match object type.");
         if (!type.IsAssignableTo(typeof(ISerializable))) throw new InvalidDataException($"Type {typeName} is not serializable.");
+        bool static_ = reader.ReadBoolean();
+        if (static_) throw new InvalidDataException("Static deserialization to object is not supported.");
         int memberCount = reader.ReadInt32();
         Dictionary<string, SerializedMember> members = SerializationRegistry.GetSerializationMembers(type);
         for (int i = 0; i < memberCount; i++)
@@ -166,7 +231,7 @@ public static class Serializer
             object? value = ReadValueObj(reader, memberType, prevValue);
             if (serializedMember.Queue != null)
             {
-                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable obj, object? value)>? queue))
+                if (!Queues.TryGetValue(serializedMember.Queue, out Queue<(SerializedMember member, ISerializable? obj, object? value)>? queue))
                     Queues[serializedMember.Queue] = queue = new();
                 queue.Enqueue((serializedMember, obj, value));
                 continue;
@@ -179,8 +244,10 @@ public static class Serializer
             }
         }
     }
-    private static object ReadValueObj(BinaryReader reader, Type type, object? value)
+    private static object? ReadValueObj(BinaryReader reader, Type type, object? value)
     {
+        bool hasValue = reader.ReadBoolean();
+        if (!hasValue) return null;
         if (type.IsArray)
         {
             if (value is Array array && array.GetType().GetElementType() == type)
@@ -190,7 +257,7 @@ public static class Serializer
                 Type elementType = type.GetElementType()!;
                 for (int i = 0; i < length; i++)
                 {
-                    object element = ReadValue(reader, elementType);
+                    object? element = ReadValue(reader, elementType);
                     array.SetValue(element, i);
                 }
                 return array;
@@ -202,7 +269,7 @@ public static class Serializer
                 Array newArray = Array.CreateInstance(elementType, length);
                 for (int i = 0; i < length; i++)
                 {
-                    object element = ReadValue(reader, elementType);
+                    object? element = ReadValue(reader, elementType);
                     newArray.SetValue(element, i);
                 }
                 return newArray;
@@ -218,10 +285,16 @@ public static class Serializer
             return s;
         }
 
-        return ReadValue(reader, type);
+        return ReadValue(reader, type, true);
     }
-    private static void WriteValue(BinaryWriter writer, Type type, object? value, bool save = true)
+    private static void WriteValue(BinaryWriter writer, Type type, object? value, string[]? flags = null)
     {
+        if (value == null)
+        {
+            writer.Write(false);
+            return;
+        }
+        writer.Write(true);
         if (type.IsEnum)
         {
             Type underlying = Enum.GetUnderlyingType(type);
@@ -255,39 +328,6 @@ public static class Serializer
             writer.Write(value as string ?? string.Empty);
             return;
         }
-        if (type == typeof(Vector2))
-        {
-            Vector2 v = value is Vector2 vv ? vv : default;
-            writer.Write(v.X);
-            writer.Write(v.Y);
-            return;
-        }
-        if (type == typeof(Vector3))
-        {
-            Vector3 v = value is Vector3 vv ? vv : default;
-            writer.Write(v.X);
-            writer.Write(v.Y);
-            writer.Write(v.Z);
-            return;
-        }
-        if (type == typeof(Vector4))
-        {
-            Vector4 v = value is Vector4 vv ? vv : default;
-            writer.Write(v.X);
-            writer.Write(v.Y);
-            writer.Write(v.Z);
-            writer.Write(v.W);
-            return;
-        }
-        if (type == typeof(Quaternion))
-        {
-            Quaternion v = value is Quaternion vv ? vv : default;
-            writer.Write(v.X);
-            writer.Write(v.Y);
-            writer.Write(v.Z);
-            writer.Write(v.W);
-            return;
-        }
 
         if (type.IsArray)
         {
@@ -304,21 +344,39 @@ public static class Serializer
             return;
         }
 
-        if (typeof(ISerializable).IsAssignableFrom(type) && value != null)
+        if (type.IsAssignableTo(typeof(ISerializable)))
         {
-            Serialize(writer, (ISerializable)value, save);
+            Serialize(writer, (ISerializable)value, flags);
+            return;
+        }
+
+        if (type.IsValueType)
+        {
+            FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            for (int i = 0; i < fields.Length; i++)
+            {
+                FieldInfo field = fields[i];
+                if (field.IsInitOnly) continue;
+                object? val = field.GetValue(value);
+                WriteValue(writer, field.FieldType, val, flags);
+            }
             return;
         }
 
         throw new NotSupportedException($"Cannot serialize field of type {type.FullName}.");
     }
 
-    private static object ReadValue(BinaryReader reader, Type type)
+    private static object? ReadValue(BinaryReader reader, Type type, bool nullChecked = false)
     {
+        if (!nullChecked)
+        {
+            bool hasValue = reader.ReadBoolean();
+            if (!hasValue) return null;
+        }
         if (type.IsEnum)
         {
             Type underlying = Enum.GetUnderlyingType(type);
-            object underlyingValue = ReadValue(reader, underlying);
+            object underlyingValue = ReadValue(reader, underlying) ?? throw new InvalidDataException("Failed to read enum underlying value.");
             return Enum.ToObject(type, underlyingValue);
         }
 
@@ -332,14 +390,6 @@ public static class Serializer
             return reader.ReadBoolean();
         if (type == typeof(string))
             return reader.ReadString();
-        if (type == typeof(Vector2))
-            return new Vector2(reader.ReadSingle(), reader.ReadSingle());
-        if (type == typeof(Vector3))
-            return new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-        if (type == typeof(Vector4))
-            return new Vector4(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-        if (type == typeof(Quaternion))
-            return new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 
         if (type.IsArray)
         {
@@ -348,7 +398,7 @@ public static class Serializer
             Array array = Array.CreateInstance(elementType, length);
             for (int i = 0; i < length; i++)
             {
-                object element = ReadValue(reader, elementType);
+                object? element = ReadValue(reader, elementType);
                 array.SetValue(element, i);
             }
             return array;
@@ -357,6 +407,20 @@ public static class Serializer
         if (typeof(ISerializable).IsAssignableFrom(type))
         {
             return Deserialize(reader);
+        }
+
+        if (type.IsValueType)
+        {
+            FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            object? value = Activator.CreateInstance(type, nonPublic: true) ?? throw new InvalidDataException($"Failed to create instance of type {type.FullName}.");
+            for (int i = 0; i < fields.Length; i++)
+            {
+                FieldInfo field = fields[i];
+                if (field.IsInitOnly) continue;
+                object? val = ReadValue(reader, field.FieldType);
+                field.SetValue(value, val);
+            }
+            return value;
         }
 
         throw new NotSupportedException($"Cannot deserialize field of type {type.FullName}.");

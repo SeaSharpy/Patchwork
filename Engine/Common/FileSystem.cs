@@ -412,7 +412,7 @@ public sealed class HttpFileSystem : IEngineFileSystem
         }
 
         // If HEAD is not allowed, some servers return 405 etc.
-        if (response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed)
+        if (response.StatusCode == HttpStatusCode.MethodNotAllowed)
         {
             using HttpRequestMessage getRequest = new HttpRequestMessage(HttpMethod.Get, url);
             try

@@ -74,7 +74,7 @@ public static class PhysicsManager
         public void PrepareForIntegration(float dt)
         {
             // No reason to recalculate gravity * dt for every body; just cache it ahead of time.
-            gravityWideDt = Vector3Wide.Broadcast(Helper.Gravity * dt);
+            gravityWideDt = Vector3Wide.Broadcast(Gravity * dt);
         }
 
         // Apply gravity and forces, this runs for like a bundle of bodies so wide types are needed.
@@ -158,7 +158,7 @@ public static class PhysicsManager
 
     public static void Update()
     {
-        Simulation.Timestep(Helper.DeltaTime, ThreadDispatcher);
+        Simulation.Timestep(DeltaTime, ThreadDispatcher);
         foreach (Entity entity in Entity.Entities.Values)
             if (entity.Physics && entity.Handle.HasValue)
             {

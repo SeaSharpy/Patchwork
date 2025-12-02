@@ -1,9 +1,9 @@
 namespace Patchwork;
 
-public abstract partial class Entity : IDisposable
+public partial class Entity : IDisposable
 {
-    [SerializedMember(save: false)] public uint ID { get; private set; }
-    [SerializedMember(save: false)] public bool Dead { get; private set; } = false;
+    [SerializedMember(flags: ["runtime"])] public uint ID { get; private set; }
+    [SerializedMember(flags: ["runtime"])] public bool Dead { get; private set; } = false;
     public bool Disposed { get; private set; }
     public bool Disposing { get; private set; }
     public float DisposeTimer { get; private set; }

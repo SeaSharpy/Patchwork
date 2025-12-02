@@ -6,6 +6,7 @@ namespace Patchwork.Net;
 public static class GameServer
 {
     public static event Action<string, uint, BinaryReader>? PacketReceived;
+    public static event Action<string>? PlayerJoined;
 
     private class ClientConnection
     {
@@ -104,6 +105,8 @@ public static class GameServer
                         connection.PlayerName = playerName;
                         ClientsByName[playerName] = connection;
                     }
+
+                    PlayerJoined?.Invoke(playerName);
 
                     continue;
                 }

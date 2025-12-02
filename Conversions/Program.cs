@@ -1,0 +1,2 @@
+﻿ModelConverter.ConvertDirectory(".");
+TextureConverter.ConvertDirectory(".");

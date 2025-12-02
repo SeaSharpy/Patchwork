@@ -1,5 +1,6 @@
 global using Patchwork.Client.Render;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 namespace Patchwork.Client.Render;
 
 public static class FrameGraph
@@ -22,6 +23,7 @@ public static class FrameGraph
 
         public GPUTexture(string path, TextureFormat? format = null)
         {
+            WriteLine($"Loading texture {path}.");
             FileStream data = DriveMounts.FileStream(path);
             using BinaryReader reader = new(data);
 
@@ -82,6 +84,7 @@ public static class FrameGraph
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             Bindless = GL.Arb.GetTextureHandle(Handle);
             GL.Arb.MakeTextureHandleResident(Bindless);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
         }
 
         private static void GetTextureFormatGL(
@@ -99,9 +102,9 @@ public static class FrameGraph
                     pixelType = PixelType.UnsignedByte;
                     break;
                 case TextureFormat.Normal:
-                    internalFormat = PixelInternalFormat.Rgb10A2;
-                    pixelFormat = PixelFormat.Rgba;
-                    pixelType = PixelType.UnsignedInt1010102;
+                    internalFormat = PixelInternalFormat.Rgb8;
+                    pixelFormat = PixelFormat.Rgb;
+                    pixelType = PixelType.UnsignedByte;
                     break;
                 case TextureFormat.MetallicRoughnessAO:
                     internalFormat = PixelInternalFormat.Rgb8;
@@ -122,6 +125,12 @@ public static class FrameGraph
             GL.Arb.MakeTextureHandleNonResident(Bindless);
             GL.DeleteTexture(Handle);
         }
+
+        public void Bind(int unit)
+        {
+            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.BindTexture(TextureTarget.Texture2D, Handle);
+        }
     }
     public class GPUMesh : IDisposable
     {
@@ -134,6 +143,7 @@ public static class FrameGraph
 
         public GPUMesh(BinaryReader reader)
         {
+            WriteLine($"Loading mesh.");
             uint magic = reader.ReadUInt32();
             if (magic != Magic)
             {
@@ -152,22 +162,27 @@ public static class FrameGraph
             {
                 int baseIndex = i * componentsPerVertex;
 
+                // Position
                 vertices[baseIndex + 0] = reader.ReadSingle();
                 vertices[baseIndex + 1] = reader.ReadSingle();
                 vertices[baseIndex + 2] = reader.ReadSingle();
 
+                // Normal
                 vertices[baseIndex + 3] = reader.ReadSingle();
                 vertices[baseIndex + 4] = reader.ReadSingle();
                 vertices[baseIndex + 5] = reader.ReadSingle();
 
+                // Tangent
                 vertices[baseIndex + 6] = reader.ReadSingle();
                 vertices[baseIndex + 7] = reader.ReadSingle();
                 vertices[baseIndex + 8] = reader.ReadSingle();
                 vertices[baseIndex + 9] = reader.ReadSingle();
 
+                // UV
                 vertices[baseIndex + 10] = reader.ReadSingle();
                 vertices[baseIndex + 11] = reader.ReadSingle();
 
+                // Color
                 vertices[baseIndex + 12] = reader.ReadSingle();
                 vertices[baseIndex + 13] = reader.ReadSingle();
                 vertices[baseIndex + 14] = reader.ReadSingle();
@@ -284,15 +299,27 @@ public static class FrameGraph
     public static Dictionary<string, GPUMesh> Meshes = new();
     public static List<string> UsedTextures = new();
     public static List<string> UsedMeshes = new();
-    public static List<Camera> Cameras = new();
+    public static List<Entity.CamData> Cameras = new();
     public readonly record struct BatchSeperator(string Mesh, RenderTexture? Albedo = null, RenderTexture? Emissive = null);
-    public static Dictionary<BatchSeperator, List<uint>> Batches = new();
+    public readonly record struct BatchItem(Matrix4 Transform, uint ID, long Albedo = 0, long Emissive = 0, long MetallicRoughnessAO = 0, long Normal = 0, TKVector4 AlbedoColor = default, TKVector4 EmissiveColor = default, TKVector4 MetallicRoughnessAOColor = default, RenderTexture? AlbedoRender = null, RenderTexture? EmissiveRender = null);
+    public static Dictionary<BatchSeperator, List<BatchItem>> Batches = new();
+    public static GPUTexture SkyboxTexture;
     public static bool Build()
     {
         UsedTextures.Clear();
         UsedMeshes.Clear();
         Cameras.Clear();
         Batches.Clear();
+        if (Skybox is PathTexture skyboxPath)
+        {
+            if (!Textures.ContainsKey(skyboxPath.Path))
+            {
+                Textures[skyboxPath.Path] = new GPUTexture(skyboxPath.Path, GPUTexture.TextureFormat.Albedo);
+                return false;
+            }
+            UsedTextures.Add(skyboxPath.Path);
+            SkyboxTexture = Textures[skyboxPath.Path];
+        }
         foreach (Entity entity in Entity.Entities.Values)
         {
             Model model;
@@ -308,6 +335,7 @@ public static class FrameGraph
                 return false;
             }
             BatchSeperator batchSeperator = new(model.DataPath);
+            BatchItem batchItem = new(entity.Transform, entity.ID, AlbedoColor: (TKVector4?)(model.ConstantAlbedo) ?? new TKVector4(), EmissiveColor: new TKVector4((TKVector3?)(model.ConstantEmissive) ?? new TKVector3(), 1f), MetallicRoughnessAOColor: new TKVector4((TKVector3?)(model.ConstantMetallicRoughnessAO) ?? new TKVector3(), 1f));
             UsedMeshes.Add(model.DataPath);
             {
                 if (model.Albedo is PathTexture pathTexture)
@@ -318,13 +346,15 @@ public static class FrameGraph
                         return false;
                     }
                     UsedTextures.Add(pathTexture.Path);
+                    batchItem = batchItem with { Albedo = Textures[pathTexture.Path].Bindless };
                 }
                 else if (model.Albedo is RenderTexture renderTexture)
                 {
                     Entity camera = Entity.GetEntity(renderTexture.Camera);
-                    if (camera.Camera == null) throw new InvalidDataException("Camera not found.");
-                    Cameras.Add(camera.Camera);
+                    if (camera.Cam == null) throw new InvalidDataException("Camera not found.");
+                    Cameras.Add(camera.Cam.Value);
                     batchSeperator = batchSeperator with { Albedo = renderTexture };
+                    batchItem = batchItem with { AlbedoRender = renderTexture };
                 }
             }
             {
@@ -336,6 +366,7 @@ public static class FrameGraph
                         return false;
                     }
                     UsedTextures.Add(pathTexture.Path);
+                    batchItem = batchItem with { Normal = Textures[pathTexture.Path].Bindless };
                 }
                 else if (model.Normal is RenderTexture renderTexture) throw new InvalidDataException("Render textures are not supported for normal maps.");
             }
@@ -348,6 +379,7 @@ public static class FrameGraph
                         return false;
                     }
                     UsedTextures.Add(pathTexture.Path);
+                    batchItem = batchItem with { MetallicRoughnessAO = Textures[pathTexture.Path].Bindless };
                 }
                 else if (model.MetallicRoughnessAO is RenderTexture renderTexture) throw new InvalidDataException("Render textures are not supported for metallic-roughness-ao maps.");
             }
@@ -360,21 +392,23 @@ public static class FrameGraph
                         return false;
                     }
                     UsedTextures.Add(pathTexture.Path);
+                    batchItem = batchItem with { Emissive = Textures[pathTexture.Path].Bindless };
                 }
                 else if (model.Emissive is RenderTexture renderTexture)
                 {
                     Entity camera = Entity.GetEntity(renderTexture.Camera);
-                    if (camera.Camera == null) throw new InvalidDataException("Camera not found.");
-                    Cameras.Add(camera.Camera);
+                    if (camera.Cam == null) throw new InvalidDataException("Camera not found.");
+                    Cameras.Add(camera.Cam.Value);
                     batchSeperator = batchSeperator with { Emissive = renderTexture };
+                    batchItem = batchItem with { EmissiveRender = renderTexture };
                 }
             }
-            if (!Batches.TryGetValue(batchSeperator, out List<uint>? batch))
+            if (!Batches.TryGetValue(batchSeperator, out List<BatchItem>? batch))
             {
                 batch = new();
                 Batches[batchSeperator] = batch;
             }
-            batch.Add(entity.ID);
+            batch.Add(batchItem);
         }
         return true;
     }
